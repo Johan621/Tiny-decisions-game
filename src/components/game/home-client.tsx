@@ -61,10 +61,12 @@ export default function HomeClient() {
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden text-zinc-100">
+    <main className="relative min-h-dvh overflow-hidden bg-[#07080d] text-zinc-100">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 -left-40 h-[480px] w-[480px] rounded-full bg-lime-400/10 blur-[120px]" />
-        <div className="absolute -bottom-52 -right-32 h-[520px] w-[520px] rounded-full bg-violet-500/10 blur-[130px]" />
+        <div className="absolute -top-48 -left-48 h-[560px] w-[560px] rounded-full bg-lime-400/[0.13] blur-[130px]" />
+        <div className="absolute -bottom-64 -right-40 h-[620px] w-[620px] rounded-full bg-violet-500/[0.14] blur-[140px]" />
+        <div className="absolute left-1/2 top-1/3 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-sky-500/[0.07] blur-[120px]" />
+        <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-lime-400/[0.05] to-transparent" />
       </div>
 
       <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-10 pt-12">
@@ -80,7 +82,7 @@ export default function HomeClient() {
           <h1 className="bg-gradient-to-br from-white via-white to-zinc-500 bg-clip-text font-mono text-6xl font-black tracking-tighter text-transparent">
             RIGGED
           </h1>
-          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-zinc-400">
+          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-zinc-300">
             One player secretly sees the answers. Everyone else has to catch them before they win.
           </p>
         </motion.div>
@@ -166,7 +168,7 @@ export default function HomeClient() {
           transition={{ delay: 0.35 }}
           className="mt-auto space-y-3 pt-10"
         >
-          <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-600">how it works</p>
+          <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">how it works</p>
           {[
             { icon: Vote, title: "Everyone answers", body: "A trivia question drops. All players lock an answer in private." },
             { icon: Search, title: "Someone's cheating", body: "One random player already saw the right answer. Blend in or get burned." },
@@ -177,12 +179,12 @@ export default function HomeClient() {
                 <s.icon className="h-4 w-4 text-lime-300" />
               </div>
               <div>
-                <p className="text-sm font-semibold">{s.title}</p>
-                <p className="text-xs leading-relaxed text-zinc-500">{s.body}</p>
+                <p className="text-sm font-semibold text-zinc-100">{s.title}</p>
+                <p className="text-xs leading-relaxed text-zinc-400">{s.body}</p>
               </div>
             </div>
           ))}
-          <p className="pt-2 text-center text-[11px] text-zinc-600">3–12 players · one phone each · 5 rounds</p>
+          <p className="pt-2 text-center text-[11px] text-zinc-400">3–12 players · one phone each · 5 rounds</p>
         </motion.div>
       </div>
     </main>

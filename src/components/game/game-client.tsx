@@ -146,7 +146,7 @@ export default function GameClient() {
     return (
       <Centered>
         <p className="font-mono text-4xl font-black tracking-tight text-zinc-300">RIP ROOM</p>
-        <p className="mt-2 text-sm text-zinc-500">This room closed or the server restarted.</p>
+        <p className="mt-2 text-sm text-zinc-400">This room closed or the server restarted.</p>
         <Link href="/" className="mt-6">
           <Button className="rounded-xl bg-lime-400 font-bold text-black hover:bg-lime-300">Back home</Button>
         </Link>
@@ -159,7 +159,7 @@ export default function GameClient() {
       <>
         <Centered>
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-lime-300/30 border-t-lime-300" />
-          <p className="mt-4 font-mono text-xs uppercase tracking-[0.3em] text-zinc-500">entering room {code}</p>
+          <p className="mt-4 font-mono text-xs uppercase tracking-[0.3em] text-zinc-400">entering room {code}</p>
         </Centered>
         <AnimatePresence>
           {gateOpen && (
@@ -191,7 +191,7 @@ export default function GameClient() {
                 >
                   Take a seat
                 </Button>
-                <Link href="/" className="mt-3 block text-center text-xs text-zinc-500 hover:text-zinc-300">
+                <Link href="/" className="mt-3 block text-center text-xs text-zinc-400 hover:text-zinc-300">
                   Back home
                 </Link>
               </div>
@@ -203,10 +203,11 @@ export default function GameClient() {
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden text-zinc-100">
+    <main className="relative min-h-dvh overflow-hidden bg-[#07080d] text-zinc-100">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 left-1/4 h-[420px] w-[420px] rounded-full bg-lime-400/[0.07] blur-[120px]" />
-        <div className="absolute -bottom-52 right-0 h-[480px] w-[480px] rounded-full bg-violet-500/[0.08] blur-[130px]" />
+        <div className="absolute -top-48 left-1/4 h-[520px] w-[520px] rounded-full bg-lime-400/[0.1] blur-[130px]" />
+        <div className="absolute -bottom-64 right-0 h-[580px] w-[580px] rounded-full bg-violet-500/[0.11] blur-[140px]" />
+        <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-white/[0.03] to-transparent" />
       </div>
 
       <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pb-28 pt-4">
@@ -346,7 +347,11 @@ function Rule({ icon, pts, label }: { icon: React.ReactNode; pts: string; label:
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-dvh flex-col items-center justify-center p-6 text-center text-zinc-100">{children}</main>
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-[#07080d] p-6 text-center text-zinc-100">
+      {children}
+    </main>
+  )
 }
 
 function Avatar({ id, name, size = "md", bot = false }: { id: string; name: string; size?: "sm" | "md" | "lg"; bot?: boolean }) {
@@ -373,16 +378,16 @@ function Lobby({ view, act }: { view: View; act: (b: Record<string, unknown>) =>
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center backdrop-blur">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">room code</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-400">room code</p>
         <p className="mt-1 select-all font-mono text-5xl font-black tracking-[0.15em] text-lime-300">{view.code}</p>
-        <p className="mt-2 text-xs text-zinc-500">Share it — everyone joins on their own phone.</p>
+        <p className="mt-2 text-xs text-zinc-400">Share it — everyone joins on their own phone.</p>
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-400">
           players · {view.players.length}/12
         </p>
-        <span className="text-[11px] text-zinc-600">need 3+ to start</span>
+        <span className="text-[11px] text-zinc-500">need 3+ to start</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         {view.players.map((p) => (
@@ -399,7 +404,7 @@ function Lobby({ view, act }: { view: View; act: (b: Record<string, unknown>) =>
               <button
                 onClick={() => act({ type: "kick-bot", pid: p.id })}
                 title={`Remove ${p.name}`}
-                className="ml-auto text-zinc-600 transition hover:text-rose-400"
+                className="ml-auto text-zinc-500 transition hover:text-rose-400"
               >
                 <UserMinus className="h-4 w-4" />
               </button>
@@ -417,7 +422,7 @@ function Lobby({ view, act }: { view: View; act: (b: Record<string, unknown>) =>
         >
           <Plus className="h-4 w-4" /> Add a test bot
         </Button>
-        <p className="self-center text-right text-[10px] leading-tight text-zinc-600">
+        <p className="self-center text-right text-[10px] leading-tight text-zinc-500">
           bots answer, accuse
           <br />& cheat on their own
         </p>
@@ -430,7 +435,7 @@ function Lobby({ view, act }: { view: View; act: (b: Record<string, unknown>) =>
       >
         Start Round 1
       </Button>
-      {!canStart && <p className="mt-2 text-center text-xs text-zinc-600">Waiting for more players…</p>}
+      {!canStart && <p className="mt-2 text-center text-xs text-zinc-500">Waiting for more players…</p>}
     </div>
   )
 }
@@ -489,10 +494,10 @@ function QuestionPhase({
         })}
       </div>
 
-      <p className="mt-4 text-center text-xs text-zinc-500">
+      <p className="mt-4 text-center text-xs text-zinc-400">
         {locked ? (
           <>
-            Answer locked <span className="text-zinc-600">(hidden from others)</span> — tap another option to change.
+            Answer locked <span className="text-zinc-500">(hidden from others)</span> — tap another option to change.
           </>
         ) : (
           "Tap an answer to lock it in. You can change until everyone's ready."
@@ -639,14 +644,14 @@ function ScoresPhase({ view, act }: { view: View; act: (b: Record<string, unknow
                 p.id === view.meId ? "border-white/25 bg-white/[0.06]" : "border-white/5 bg-white/[0.03]",
               ].join(" ")}
             >
-              <span className="w-5 shrink-0 text-center font-mono text-xs text-zinc-500">{rank + 1}</span>
+              <span className="w-5 shrink-0 text-center font-mono text-xs text-zinc-400">{rank + 1}</span>
               <Avatar id={p.id} name={p.name} size="sm" bot={p.isBot} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
                   {p.name}
                   {p.id === view.insiderId && <span className="ml-1.5 text-[10px] font-bold text-rose-300">CHEAT</span>}
                 </p>
-                <p className="flex gap-2 font-mono text-[10px] text-zinc-500">
+                <p className="flex gap-2 font-mono text-[10px] text-zinc-400">
                   <span className={g.answer ? "text-lime-400" : ""}>✓{g.answer}</span>
                   <span className={g.guess ? "text-sky-400" : ""}>🎯{g.guess}</span>
                   <span className={g.edge ? "text-amber-300" : ""}>⚡{g.edge}</span>
@@ -654,7 +659,7 @@ function ScoresPhase({ view, act }: { view: View; act: (b: Record<string, unknow
               </div>
               <div className="text-right">
                 <p className="font-mono text-base font-black">+{total}</p>
-                <p className="font-mono text-[10px] text-zinc-500">{p.score} pts</p>
+                <p className="font-mono text-[10px] text-zinc-400">{p.score} pts</p>
               </div>
             </div>
           )
@@ -711,7 +716,7 @@ function GameOver({ view, act }: { view: View; act: (b: Record<string, unknown>)
                 : "border-white/5 bg-white/[0.03]",
             ].join(" ")}
           >
-            <span className="w-5 text-center font-mono text-sm text-zinc-500">
+            <span className="w-5 text-center font-mono text-sm text-zinc-400">
               {["🥇", "🥈", "🥉"][rank] ?? rank + 1}
             </span>
             <Avatar id={p.id} name={p.name} />
@@ -723,7 +728,7 @@ function GameOver({ view, act }: { view: View; act: (b: Record<string, unknown>)
       </div>
 
       <AdvanceBar enabled onClick={() => act({ type: "advance" })} label="Play again" />
-      <Link href="/" className="mt-3 block text-center text-xs text-zinc-600 hover:text-zinc-400">
+      <Link href="/" className="mt-3 block text-center text-xs text-zinc-500 hover:text-zinc-400">
         Leave room
       </Link>
     </div>
@@ -735,7 +740,7 @@ function GameOver({ view, act }: { view: View; act: (b: Record<string, unknown>)
 function ProgressPill({ done, total, label, pct }: { done: number; total: number; label: string; pct: number }) {
   return (
     <div className="min-w-0 flex-1">
-      <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+      <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-400">
         {done}/{total} {label}
       </p>
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
@@ -789,7 +794,7 @@ function AdvanceBar({
         >
           {label}
         </Button>
-        {hint && <p className="mt-1.5 text-center text-[11px] text-zinc-500">{hint}</p>}
+        {hint && <p className="mt-1.5 text-center text-[11px] text-zinc-400">{hint}</p>}
       </div>
     </div>
   )
