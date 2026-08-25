@@ -27,6 +27,7 @@ import {
   type RunSummary,
 } from "@/lib/decisions/run";
 import type { ThemeDef } from "@/lib/decisions/themes";
+import { Burst, GlassCard } from "./kit";
 
 const DAILY_LENGTH = 20;
 
@@ -73,6 +74,7 @@ export default function PlayScreen({
   const [banner, setBanner] = useState<EventId | null>(null);
   const [revealInfo, setRevealInfo] = useState<{ quip: string; pts: number; side: "a" | "b" } | null>(null);
   const [mirrorSwap, setMirrorSwap] = useState(false);
+  const [legFlash, setLegFlash] = useState<number | null>(null);
 
   const activeRef = useRef<ActiveEvent>({ double: 0, mirror: 0, shield: false, freezeNext: false });
   const lastEventRef = useRef<EventId | null>(null);
@@ -238,6 +240,7 @@ export default function PlayScreen({
       setFastestMs(newFast);
       if (question.rarity === "legendary") {
         setBonusCoins((c) => c + 5);
+        setLegFlash(Date.now());
         blip("event", soundOn);
       }
       setRevealInfo({
@@ -324,8 +327,8 @@ export default function PlayScreen({
             if (!finishedRef.current) onRecent(seenOrderRef.current);
             onQuit();
           }}
-          className="grid h-10 w-10 place-items-center rounded-full text-lg font-bold active:scale-90 transition-transform"
-          style={{ background: theme.card, color: theme.text }}
+          className="glass grid h-10 w-10 place-items-center rounded-2xl border border-white/25 text-lg font-bold active:scale-90 transition-transform"
+          style={{ color: theme.text }}
           aria-label="Quit run"
         >
           ✕
@@ -334,15 +337,16 @@ export default function PlayScreen({
           key={score}
           initial={{ scale: 1.18 }}
           animate={{ scale: 1 }}
-          className="rounded-full px-4 py-1.5 text-lg font-black tabular-nums"
-          style={{ background: theme.card, color: theme.text }}
+          className="glass rounded-2xl border border-white/25 px-4 py-1.5"
+          style={{ color: theme.text }}
         >
-          {score.toLocaleString("en-IN")}
+          <span className="text-lg font-black tabular-nums">{score.toLocaleString("en-IN")}</span>
+          <span className="ml-1.5 text-[9px] font-black uppercase tracking-[0.2em] opacity-60">pts</span>
         </motion.div>
       </div>
 
       {/* Prompt + category */}
-      <div className="mt-3 text-center">
+      <GlassCard className="relative z-10 mx-auto mt-2 w-full max-w-md px-4 py-3 text-center">
         <AnimatePresence mode="wait">
           {cat && (
             <motion.div
@@ -350,7 +354,8 @@ export default function PlayScreen({
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              className="text-xs font-bold uppercase tracking-[0.18em]"
+              transition={{ duration: 0.16 }}
+              className="text-[10px] font-black uppercase tracking-[0.18em]"
               style={{ color: theme.sub }}
             >
               {cat.emoji} {cat.label}
@@ -367,57 +372,56 @@ export default function PlayScreen({
             </motion.div>
           )}
         </AnimatePresence>
-        <h1
-          className="mt-1 text-2xl font-black tracking-tight"
-          style={{ color: theme.text }}
-        >
+        <h1 className="mt-0.5 text-balance text-[22px] font-black leading-tight tracking-tight" style={{ color: theme.text }}>
           {prompt}
         </h1>
-      </div>
 
-      {/* Combo */}
-      <div className="mt-2 flex justify-center">
-        <AnimatePresence>
-          {combo > 0 && (
-            <motion.div
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.6, opacity: 0 }}
-              className="rounded-full bg-white/85 px-4 py-1 text-sm font-black shadow"
-              style={{ color: "#c2410c" }}
-            >
-              🔥 ×{mult} · {combo} streak
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+        {/* Combo overlapping the card bottom */}
+        <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2">
+          <AnimatePresence>
+            {combo > 0 && (
+              <motion.div
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.6, opacity: 0 }}
+                className="whitespace-nowrap rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-4 py-1 text-xs font-black text-white shadow-lg shadow-orange-500/40"
+              >
+                🔥 ×{mult} · {combo} streak
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </GlassCard>
 
       {/* Timer bar */}
       <div
-        className="mx-auto mt-4 w-full max-w-md overflow-hidden rounded-full"
-        style={{ background: theme.card, height: 10 }}
+        className="mx-auto mt-5 w-full max-w-md overflow-hidden rounded-full border border-white/20"
+        style={{ background: theme.card, height: 12 }}
       >
         <div
           ref={barRef}
           className="h-full w-full origin-left rounded-full will-change-transform"
           style={{
             transform: "scaleX(1)",
-            background: theme.timer,
+            background: `linear-gradient(90deg, ${theme.timer}, #ff7847)`,
           }}
         />
       </div>
 
       {/* Choices */}
-      <div className="relative mt-auto mb-[max(env(safe-area-inset-bottom),14px)] grid grid-cols-2 gap-3">
+      <div className="relative mt-auto mb-[max(env(safe-area-inset-bottom),12px)] grid grid-cols-2 gap-2.5">
         {[leftQ, rightQ].map((txt, i) => (
           <motion.button
             key={`${question?.key}-${i}`}
             initial={{ opacity: 0, y: 24, rotate: i === 0 ? -1.5 : 1.5 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
+            transition={{ type: "spring", damping: 22, stiffness: 280 }}
             whileTap={{ scale: 0.955 }}
             onClick={() => answer(i === 0 ? "a" : "b")}
             disabled={phase !== "ask"}
-            className="flex min-h-[34dvh] select-none items-center justify-center rounded-[28px] border p-4 text-center shadow-lg"
+            className={`relative flex min-h-[31dvh] select-none items-center justify-center rounded-[26px] border p-4 text-center shadow-lg ${
+              question && question.rarity === "legendary" && i === 0 ? "" : ""
+            }`}
             style={{
               background:
                 revealInfo?.side === (i === 0 ? "a" : "b")
@@ -430,13 +434,21 @@ export default function PlayScreen({
               borderWidth: question && question.rarity === "legendary" ? 3 : 1,
               boxShadow:
                 question && question.rarity === "legendary"
-                  ? `0 0 18px ${RARITIES.legendary.color}66`
+                  ? `0 0 20px ${RARITIES.legendary.color}77`
                   : undefined,
               color:
                 revealInfo?.side === (i === 0 ? "a" : "b") ? theme.accentText : theme.text,
             }}
           >
             <span className="text-balance text-lg font-extrabold leading-snug">{txt}</span>
+            {question && question.rarity !== "common" && (
+              <span
+                className="absolute right-2 top-2 text-sm drop-shadow"
+                aria-hidden
+              >
+                {RARITIES[question.rarity].emoji}
+              </span>
+            )}
           </motion.button>
         ))}
 
@@ -460,15 +472,46 @@ export default function PlayScreen({
       <AnimatePresence>
         {banner && (
           <motion.div
-            initial={{ y: -80, opacity: 0, rotate: -3 }}
-            animate={{ y: 0, opacity: 1, rotate: 0 }}
-            exit={{ y: -80, opacity: 0 }}
-            className="pointer-events-none absolute left-1/2 top-[22%] z-20 -translate-x-1/2 rounded-3xl bg-black/85 px-6 py-4 text-center shadow-2xl"
+            initial={{ y: -90, opacity: 0, rotate: -6, scale: 0.85 }}
+            animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
+            exit={{ y: -90, opacity: 0, scale: 0.9 }}
+            transition={{ type: "spring", damping: 16, stiffness: 260 }}
+            className="pointer-events-none absolute left-1/2 top-[20%] z-30 -translate-x-1/2 rounded-3xl bg-slate-900/92 px-7 py-4 text-center shadow-2xl ring-2 ring-yellow-300/70"
           >
-            <p className="text-3xl">{EVENTS[banner].emoji}</p>
-            <p className="text-base font-black text-yellow-300">{EVENTS[banner].name}</p>
-            <p className="text-xs font-semibold text-white/80">{EVENTS[banner].blurb}</p>
+            <motion.p
+              animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.25, 1] }}
+              transition={{ repeat: Infinity, duration: 1.1 }}
+              className="text-4xl"
+            >
+              {EVENTS[banner].emoji}
+            </motion.p>
+            <p className="text-base font-black uppercase tracking-wide text-yellow-300">
+              {EVENTS[banner].name}
+            </p>
+            <p className="text-xs font-semibold text-white/85">{EVENTS[banner].blurb}</p>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Legendary golden flash + burst */}
+      <AnimatePresence>
+        {legFlash != null && (
+          <>
+            <motion.div
+              key={`flash-${legFlash}`}
+              initial={{ opacity: 0.85 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.65, ease: "easeOut" }}
+              onAnimationComplete={() => setLegFlash(null)}
+              className="pointer-events-none absolute inset-0 z-20"
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 62%, rgba(255,213,79,0.55) 0%, rgba(255,213,79,0) 55%)",
+              }}
+            />
+            <Burst key={`burst-${legFlash}`} x={50} y={58} count={18} spread={130} colors={["#ffd54f", "#fff8e1", "#ffb300", "#ffffff"]} onDone={() => setLegFlash(null)} />
+          </>
         )}
       </AnimatePresence>
     </div>

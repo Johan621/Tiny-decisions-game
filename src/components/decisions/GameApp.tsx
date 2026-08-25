@@ -19,6 +19,7 @@ import PlayScreen from "./PlayScreen";
 import ResultScreen from "./ResultScreen";
 import { BadgesSheet, DailyRewardsSheet, LeaderboardSheet, StatsSheet, ThemesSheet } from "./sheets";
 import { AdModal } from "./ui";
+import { DragonMascot, RobotMascot } from "./kit";
 
 type Screen = "home" | "play" | "result";
 type SheetKind = "leaderboard" | "themes" | "badges" | "rewards" | "stats" | null;
@@ -44,6 +45,7 @@ export default function GameApp() {
   const [adUnlockTheme, setAdUnlockTheme] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [lastLevel, setLastLevel] = useState({ gained: 0, level: 1, xpGain: 0, streakBonus: 0 });
+  const prevBestRef = useRef(0);
   const profileRef = useRef<Profile | null>(null);
 
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function GameApp() {
     (s: RunSummary) => {
       let earned: string[] = [];
       update((p) => {
+        prevBestRef.current = p.best;
         let streak = p.streak;
         let dailyBest = p.dailyBest;
         let dailyLast = p.dailyLast;
@@ -207,13 +210,18 @@ export default function GameApp() {
   if (!profile) {
     return (
       <div className="grid min-h-dvh place-items-center" style={{ background: "#7c2ae8" }}>
-        <motion.div
-          animate={{ scale: [0.9, 1.05, 0.9], rotate: [0, 6, -6, 0] }}
-          transition={{ repeat: Infinity, duration: 1.6 }}
-          className="grid h-20 w-20 place-items-center rounded-full bg-white text-4xl shadow-2xl"
-        >
-          🤔
-        </motion.div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-end gap-4">
+            <DragonMascot size={92} />
+            <RobotMascot size={84} />
+          </div>
+          <p className="text-lg font-black uppercase tracking-widest text-white drop-shadow">
+            Tiny Decisions
+          </p>
+          <div className="h-2 w-44 overflow-hidden rounded-full bg-white/25">
+            <div className="shine relative h-full w-full rounded-full bg-white/40" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -225,7 +233,13 @@ export default function GameApp() {
     <div className="relative min-h-dvh w-full overflow-hidden" style={{ background: activeThemeDef.bg }}>
       <AnimatePresence mode="wait">
         {screen === "home" && (
-          <motion.div key="home" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
+          <motion.div
+            key="home"
+            initial={{ opacity: 0, y: 26, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.99 }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+          >
             <HomeScreen
               profile={profile}
               onPlay={() => startRun("endless")}
@@ -238,7 +252,13 @@ export default function GameApp() {
         )}
 
         {screen === "play" && (
-          <motion.div key={`play-${runNonce}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            key={`play-${runNonce}`}
+            initial={{ opacity: 0, scale: 1.03 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", damping: 26, stiffness: 300 }}
+          >
             <PlayScreen
               mode={runMode}
               theme={activeThemeDef}
@@ -257,7 +277,13 @@ export default function GameApp() {
         )}
 
         {screen === "result" && lastRun && (
-          <motion.div key="result" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+          <motion.div
+            key="result"
+            initial={{ opacity: 0, y: 26, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.99 }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+          >
             <ResultScreen
               run={lastRun}
               newBadgeIds={newBadges}
@@ -265,6 +291,7 @@ export default function GameApp() {
               levelsGained={lastLevel.gained}
               newLevel={lastLevel.level}
               streakBonus={lastLevel.streakBonus}
+              isNewBest={prevBestRef.current > 0 && lastRun.score > prevBestRef.current}
               adAvailable={profile.games % 2 === 0}
               onWatchAd={() => setAdOpen(true)}
               onPlayAgain={() => startRun(lastRun.mode)}
@@ -307,9 +334,9 @@ export default function GameApp() {
       {/* offline indicator */}
       {offline && (
         <motion.div
-          initial={{ y: 60 }}
+          initial={{ y: 70 }}
           animate={{ y: 0 }}
-          className="fixed bottom-[max(env(safe-area-inset-bottom),10px)] left-1/2 z-40 -translate-x-1/2 rounded-full bg-black/85 px-4 py-2 text-xs font-bold text-white shadow-xl"
+          className="glass fixed bottom-[max(env(safe-area-inset-bottom),10px)] left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/25 px-4 py-2 text-xs font-bold text-white shadow-xl"
         >
           📡 Offline — playing locally, progress saves on device
         </motion.div>

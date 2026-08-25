@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { badgeById } from "@/lib/decisions/badges";
 import type { RunSummary } from "@/lib/decisions/run";
+import { Burst, Floaters, GlassCard, GradientButton } from "./kit";
 
 export default function ResultScreen({
   run,
@@ -12,6 +13,7 @@ export default function ResultScreen({
   levelsGained,
   newLevel,
   streakBonus,
+  isNewBest,
   adAvailable,
   onPlayAgain,
   onHome,
@@ -24,6 +26,7 @@ export default function ResultScreen({
   levelsGained: number;
   newLevel: number;
   streakBonus: number;
+  isNewBest: boolean;
   adAvailable: boolean;
   onPlayAgain: () => void;
   onHome: () => void;
@@ -31,6 +34,9 @@ export default function ResultScreen({
   onLeaderboard: () => void;
 }) {
   const [shown, setShown] = useState(0);
+  const [burstKey, setBurstKey] = useState<number | null>(
+    isNewBest || levelsGained > 0 ? Date.now() : null
+  );
   const rafRef = useRef(0);
 
   useEffect(() => {
@@ -48,39 +54,54 @@ export default function ResultScreen({
   const bonus = Math.round(run.score * 0.3);
 
   return (
-    <div className="flex min-h-dvh flex-col px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-[max(env(safe-area-inset-top),20px)] text-white">
+    <div className="relative flex min-h-dvh flex-col overflow-hidden px-5 pb-[max(env(safe-area-inset-bottom),16px)] pt-[max(env(safe-area-inset-top),18px)] text-white">
+      <Floaters count={6} />
+      {burstKey != null && (
+        <Burst key={burstKey} x={50} y={22} count={22} spread={150} onDone={() => setBurstKey(null)} />
+      )}
+
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 18 }}
-        className="mt-4 text-center"
+        className="relative z-10 mt-3 text-center"
       >
-        <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-75">
+        <p className="text-xs font-black uppercase tracking-[0.28em] opacity-75">
           {run.mode === "daily"
             ? run.dailyCompleted
               ? "Daily complete!"
               : "Daily attempt"
             : "Run over"}
         </p>
-        <p className="mt-2 text-[60px] font-black leading-none tabular-nums drop-shadow-lg">
+        {isNewBest && run.score > 0 && (
+          <motion.div
+            initial={{ scale: 0, rotate: -8 }}
+            animate={{ scale: 1, rotate: [-2, 2, -1, 0] }}
+            transition={{ delay: 0.35, type: "spring", damping: 12 }}
+            className="mx-auto mt-2 w-fit rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-1 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/40"
+          >
+            ✨ New personal best!
+          </motion.div>
+        )}
+        <p className="text-outline mt-1 bg-gradient-to-b from-white via-yellow-100 to-yellow-300 bg-clip-text text-[64px] font-black leading-none tabular-nums text-transparent">
           {shown.toLocaleString("en-IN")}
         </p>
-        <p className="mt-1 text-sm font-bold uppercase tracking-widest opacity-80">points</p>
+        <p className="-mt-1 text-[10px] font-black uppercase tracking-[0.32em] opacity-70">
+          points
+        </p>
       </motion.div>
 
       {/* level up */}
       {levelsGained > 0 && (
         <motion.div
-          initial={{ scale: 0.6, rotate: -4, opacity: 0 }}
+          initial={{ scale: 0.6, rotate: -5, opacity: 0 }}
           animate={{ scale: 1, rotate: 0, opacity: 1 }}
-          transition={{ delay: 0.5, type: "spring", damping: 12 }}
-          className="mx-auto mt-4 rounded-2xl bg-yellow-300 px-6 py-2.5 text-center shadow-xl"
+          transition={{ delay: 0.55, type: "spring", damping: 12 }}
+          className="relative z-10 mx-auto mt-3 rounded-2xl bg-gradient-to-r from-yellow-300 to-amber-500 px-6 py-2 text-center shadow-xl shadow-amber-500/40"
         >
-          <p className="text-lg font-black text-yellow-950">
-            🎉 LEVEL UP! Lv {newLevel}
-          </p>
+          <p className="text-base font-black text-yellow-950">🎉 LEVEL UP · Lv {newLevel}</p>
           {levelsGained > 1 && (
-            <p className="text-xs font-extrabold text-yellow-800">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-yellow-800">
               +{levelsGained} levels at once!
             </p>
           )}
@@ -88,48 +109,43 @@ export default function ResultScreen({
       )}
 
       {/* stats */}
-      <div className="mt-5 grid grid-cols-2 gap-2.5">
-        <Stat label="Choices" value={`${run.choices}`} />
-        <Stat label="Best streak" value={`🔥 ×${run.bestCombo}`} />
+      <StaggerWrap className="relative z-10 mt-4 grid grid-cols-2 gap-2">
+        <Stat icon="🎯" label="Choices" value={`${run.choices}`} />
+        <Stat icon="🔥" label="Best streak" value={`×${run.bestCombo}`} />
         <Stat
+          icon="⚡"
           label="Fastest tap"
           value={run.fastestMs !== null ? `${(run.fastestMs / 1000).toFixed(2)}s` : "—"}
         />
-        <Stat label="XP earned" value={`⭐ +${xpGain}`} />
-        <Stat label="Coins earned" value={`🪙 +${run.coinsEarned + streakBonus}`} />
+        <Stat icon="⭐" label="XP earned" value={`+${xpGain}`} />
+        <Stat icon="🪙" label="Coins earned" value={`+${run.coinsEarned + streakBonus}`} color="#ffe066" />
         {run.legendaries > 0 ? (
-          <Stat label="Legendaries hit" value={`🟡 ×${run.legendaries}`} color="#ffd54f" />
+          <Stat icon="🟡" label="Legendaries" value={`×${run.legendaries}`} color="#ffd54f" />
         ) : (
-          <Stat
-            label="Login-streak bonus"
-            value={streakBonus > 0 ? `🔥 +${streakBonus} 🪙` : "—"}
-          />
+          <Stat icon="🗓️" label="Streak bonus" value={streakBonus > 0 ? `+${streakBonus}` : "—"} />
         )}
-      </div>
+      </StaggerWrap>
 
       {/* daily note */}
       {run.mode === "daily" && (
-        <div className="mt-4 rounded-2xl border border-white/25 bg-white/12 px-4 py-3 text-center text-sm font-bold">
+        <div className="glass relative z-10 mt-3 rounded-2xl border border-white/25 px-4 py-2.5 text-center text-sm font-bold">
           {run.dailyCompleted
-            ? "✅ Challenge logged — come back tomorrow to grow your streak!"
-            : "⏱️ Time beat you. Try again tomorrow… or now."}
+            ? "✅ Logged — come back tomorrow to grow your streak!"
+            : "⏱️ Time beat you. Tomorrow is a fresh shot."}
         </div>
       )}
 
       {/* achievements */}
       {newBadgeIds.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-yellow-200/40 bg-yellow-300/15 px-4 py-3">
-          <span className="text-xs font-black uppercase tracking-widest text-yellow-200">
+        <div className="relative z-10 mt-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-yellow-200/50 bg-gradient-to-r from-yellow-400/25 via-amber-300/15 to-transparent px-4 py-2.5">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-200">
             Unlocked
           </span>
           {newBadgeIds.map((id) => {
             const b = badgeById(id);
             if (!b) return null;
             return (
-              <span
-                key={id}
-                className="rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold"
-              >
+              <span key={id} className="rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold">
                 {b.emoji} {b.name}
               </span>
             );
@@ -144,7 +160,7 @@ export default function ResultScreen({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.9 }}
           onClick={onWatchAd}
-          className="mt-4 w-full rounded-2xl border border-emerald-200/50 bg-emerald-400/25 px-4 py-4 text-left active:scale-[0.98] transition"
+          className="glass relative z-10 mt-3 w-full rounded-2xl border border-emerald-200/60 px-4 py-3.5 text-left active:scale-[0.98] transition"
         >
           <p className="text-sm font-black">
             🎬 Watch a tiny ad →{" "}
@@ -155,42 +171,83 @@ export default function ResultScreen({
       )}
 
       {/* actions */}
-      <div className="mt-auto space-y-3 pt-6">
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={onPlayAgain}
-          className="w-full rounded-[24px] bg-white py-4 text-xl font-black shadow-xl"
-          style={{ color: "#7c2ae8" }}
+      <div className="relative z-10 mt-auto space-y-2.5 pt-5">
+        <GradientButton
+          onClick={() => {
+            setBurstKey(Date.now());
+            window.setTimeout(onPlayAgain, 140);
+          }}
         >
-          ↻ PLAY AGAIN
-        </motion.button>
-        <div className="grid grid-cols-2 gap-3">
-          <GhostBtn onClick={onHome}>🏠 Home</GhostBtn>
-          <GhostBtn onClick={onLeaderboard}>🏆 Ranks</GhostBtn>
+          <span className="text-xl leading-none">↻</span>
+          <span className="text-lg font-black uppercase tracking-wide">Play Again</span>
+        </GradientButton>
+        <div className="grid grid-cols-2 gap-2.5">
+          <GlassBtn onClick={onHome}>🏠 Home</GlassBtn>
+          <GlassBtn onClick={onLeaderboard}>🏆 Ranks</GlassBtn>
         </div>
       </div>
     </div>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function StaggerWrap({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-3 text-center">
-      <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{label}</p>
-      <p className="mt-0.5 truncate text-lg font-black tabular-nums" style={{ color }}>
-        {value}
-      </p>
-    </div>
+    <motion.div
+      className={className}
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 0.15 } } }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+const statVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, damping: 22, stiffness: 260 } },
+};
+
+function GlassBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="rounded-2xl border border-white/30 bg-white/15 py-3.5 text-base font-extrabold active:scale-[0.98] transition"
+      className="glass rounded-2xl border border-white/25 py-3.5 text-base font-extrabold active:scale-[0.98] transition"
     >
       {children}
     </button>
+  );
+}
+
+function Stat({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  color?: string;
+}) {
+  return (
+    <motion.div variants={statVariants}>
+      <GlassCard className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-lg">
+          {icon}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[9px] font-bold uppercase tracking-widest opacity-65">
+            {label}
+          </span>
+          <span
+            className="block truncate text-base font-black tabular-nums leading-tight"
+            style={{ color }}
+          >
+            {value}
+          </span>
+        </span>
+      </GlassCard>
+    </motion.div>
   );
 }

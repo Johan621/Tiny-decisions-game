@@ -148,6 +148,93 @@ button {
   scrollbar-width: none;
 }
 
+/* ---------- game UI kit ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.sheet-dark {
+  background: rgba(16, 11, 32, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: rgba(28, 18, 52, 0.62);
+  }
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.94);
+  }
+  .sheet-dark {
+    background: rgba(13, 8, 26, 0.97);
+  }
+}
+
+.btn-glossy {
+  position: relative;
+  isolation: isolate;
+}
+.btn-glossy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 46%);
+  pointer-events: none;
+}
+
+.text-outline {
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes etd-shine {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+.shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: etd-shine 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes etd-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}
+.btn-pulse {
+  animation: etd-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shine::before,
+  .btn-pulse {
+    animation: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
