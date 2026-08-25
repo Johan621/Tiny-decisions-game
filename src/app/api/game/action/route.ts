@@ -4,12 +4,12 @@ import {
   advance,
   buildView,
   createRoom,
+  dayVote,
   getRoom,
   joinRoom,
   kickBot,
+  nightAction,
   tickBots,
-  voteAnswer,
-  voteSuspect,
 } from "@/lib/game/store"
 
 export const dynamic = "force-dynamic"
@@ -19,8 +19,8 @@ interface ActionBody {
   code?: string
   name?: string
   pid?: string
-  choice?: number
-  suspectId?: string
+  kind?: "kill" | "inspect" | "protect"
+  targetId?: string
 }
 
 export async function POST(request: Request) {
@@ -56,8 +56,8 @@ export async function POST(request: Request) {
       if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 })
       return NextResponse.json({ ok: true })
     }
-    case "vote-answer":
-    case "vote-suspect":
+    case "night-action":
+    case "day-vote":
     case "advance": {
       const room = getRoom(body.code ?? "")
       if (!room) return NextResponse.json({ ok: false, error: "ROOM_NOT_FOUND" }, { status: 404 })
@@ -68,12 +68,14 @@ export async function POST(request: Request) {
       tickBots(room)
 
       let result: { ok: true } | { ok: false; error: string }
-      if (body.type === "vote-answer") {
-        result = voteAnswer(room, pid, body.choice as number)
-      } else if (body.type === "vote-suspect") {
-        result = voteSuspect(room, pid, body.suspectId as string)
+      if (body.type === "night-action") {
+        if (!body.kind || !body.targetId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 })
+        result = nightAction(room, pid, body.kind, body.targetId)
+      } else if (body.type === "day-vote") {
+        if (!body.targetId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 })
+        result = dayVote(room, pid, body.targetId)
       } else {
-        result = advance(room, pid)
+        result = advance(room)
       }
       if (!result.ok) {
         return NextResponse.json({ ok: false, error: result.error }, { status: 409 })

@@ -13,7 +13,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "ROOM_NOT_FOUND" }, { status: 404 })
   }
   if (!pid || !room.players.has(pid)) {
-    // room exists but caller is not seated — enough info to offer rejoin
     return NextResponse.json(
       { ok: false, error: "PLAYER_NOT_FOUND", playerCount: room.players.size },
       { status: 404 }

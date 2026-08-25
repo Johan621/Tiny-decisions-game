@@ -1,31 +1,28 @@
-import { QUESTIONS } from "./questions"
-
-export type Phase = "lobby" | "question" | "suspicion" | "scores" | "gameover"
+export type Phase = "lobby" | "night" | "dawn" | "day" | "verdict" | "gameover"
+export type Role = "villager" | "seer" | "guardian" | "umbral"
 
 export interface Player {
   id: string
   name: string
-  score: number
+  wins: number
   joinedAt: number
   lastSeen: number
   isBot?: boolean
 }
 
-export interface Round {
-  q: { text: string; options: string[]; correctIndex: number }
-  insiderId: string
-  answerVotes: Record<string, number>
-  suspectVotes: Record<string, string>
-  gains: Record<string, Gain> | null
-  startedAt: number
-  botAnswerAt: Record<string, number>
-  botSuspectAt: Record<string, number>
-}
-
-export interface Gain {
-  answer: number
-  guess: number
-  edge: number
+export interface Game {
+  roundNum: number
+  roles: Record<string, Role>
+  alive: Record<string, boolean>
+  seerKnowledge: Record<string, Role>
+  lastProtected: string | null
+  wolfVotes: Record<string, string>
+  guardTarget: string | null
+  seerTarget: string | null
+  dayVotes: Record<string, string>
+  lastNight: { victim: string | null; savedBy: string | null } | null
+  lastBanished: { playerId: string; role: Role } | null
+  botActAt: Record<string, number>
 }
 
 export interface Room {
@@ -34,20 +31,16 @@ export interface Room {
   players: Map<string, Player>
   joinOrder: string[]
   phase: Phase
-  roundNum: number
-  totalRounds: number
-  rounds: Round[]
-  insiderQueue: string[]
-  usedQuestions: Set<number>
+  game: Game | null
 }
 
 const CONNECTED_MS = 15_000
 const MAX_PLAYERS = 12
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
-const g = globalThis as unknown as { __riggedRooms?: Map<string, Room> }
-if (!g.__riggedRooms) g.__riggedRooms = new Map()
-const rooms = g.__riggedRooms
+const g = globalThis as unknown as { __shadowfellRooms?: Map<string, Room> }
+if (!g.__shadowfellRooms) g.__shadowfellRooms = new Map()
+const rooms = g.__shadowfellRooms
 
 function randomCode(): string {
   let s = ""
@@ -68,6 +61,11 @@ export function normalizeCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4)
 }
 
+export function setupFor(count: number): { umbrals: number; seer: boolean; guardian: boolean } {
+  const umbrals = count <= 5 ? 1 : count <= 8 ? 2 : 3
+  return { umbrals, seer: true, guardian: count >= 6 }
+}
+
 function sweepOldRooms() {
   const now = Date.now()
   for (const [code, room] of rooms) {
@@ -81,18 +79,14 @@ export function createRoom(hostName: string): { room: Room; playerId: string } {
   while (rooms.has(code)) code = randomCode()
   const now = Date.now()
   const hostId = crypto.randomUUID()
-  const player: Player = { id: hostId, name: hostName, score: 0, joinedAt: now, lastSeen: now }
+  const player: Player = { id: hostId, name: hostName, wins: 0, joinedAt: now, lastSeen: now }
   const room: Room = {
     code,
     createdAt: now,
     players: new Map([[hostId, player]]),
     joinOrder: [hostId],
     phase: "lobby",
-    roundNum: 0,
-    totalRounds: 5,
-    rounds: [],
-    insiderQueue: [],
-    usedQuestions: new Set(),
+    game: null,
   }
   rooms.set(code, room)
   return { room, playerId: hostId }
@@ -108,73 +102,18 @@ export function joinRoom(codeRaw: string, name: string): { ok: true; pid: string
   if (!room) return { ok: false, error: "ROOM_NOT_FOUND" }
   if (room.players.size >= MAX_PLAYERS) return { ok: false, error: "ROOM_FULL" }
   let finalName = name.trim().slice(0, 16)
-  if (!finalName) finalName = "Player"
+  if (!finalName) finalName = "Wanderer"
   const existingNames = new Set([...room.players.values()].map((p) => p.name))
   if (existingNames.has(finalName)) {
     let n = 2
     while (existingNames.has(`${finalName} ${n}`)) n++
     finalName = `${finalName} ${n}`
   }
-  // Reconnect support: same device rejoining with same name in lobby picks old identity back up
   const now = Date.now()
   const pid = crypto.randomUUID()
-  room.players.set(pid, { id: pid, name: finalName, score: 0, joinedAt: now, lastSeen: now })
+  room.players.set(pid, { id: pid, name: finalName, wins: 0, joinedAt: now, lastSeen: now })
   room.joinOrder.push(pid)
   return { ok: true, pid }
-}
-
-function buildInsiderQueue(room: Room) {
-  const ids = room.joinOrder.filter((id) => room.players.has(id))
-  // keep leftover queue entries first so everyone gets a turn before repeats
-  const remaining = room.insiderQueue.filter((id) => room.players.has(id))
-  const rest = shuffle(ids.filter((id) => !remaining.includes(id)))
-  room.insiderQueue = [...remaining, ...rest]
-}
-
-function nextInsider(room: Room): string {
-  const liveIds = new Set(room.players.keys())
-  while (room.insiderQueue.length) {
-    const id = room.insiderQueue.shift()!
-    if (liveIds.has(id)) return id
-  }
-  buildInsiderQueue(room)
-  return room.insiderQueue.shift()!
-}
-
-function buildRoundQuestion(room: Room) {
-  let idx = Math.floor(Math.random() * QUESTIONS.length)
-  let guard = 0
-  while (room.usedQuestions.has(idx) && guard++ < 200) {
-    idx = Math.floor(Math.random() * QUESTIONS.length)
-  }
-  if (room.usedQuestions.size >= QUESTIONS.length - 2) room.usedQuestions.clear()
-  room.usedQuestions.add(idx)
-  const raw = QUESTIONS[idx]
-  const perm = shuffle([0, 1, 2, 3])
-  const options = perm.map((i) => raw.options[i])
-  const correctIndex = perm.indexOf(raw.correctIndex)
-  return { text: raw.text, options, correctIndex }
-}
-
-function startNextRound(room: Room) {
-  if (room.phase === "lobby") buildInsiderQueue(room)
-  const now = Date.now()
-  room.roundNum += 1
-  const round: Round = {
-    q: buildRoundQuestion(room),
-    insiderId: nextInsider(room),
-    answerVotes: {},
-    suspectVotes: {},
-    gains: null,
-    startedAt: now,
-    botAnswerAt: {},
-    botSuspectAt: {},
-  }
-  for (const p of room.players.values()) {
-    if (p.isBot) round.botAnswerAt[p.id] = now + 3500 + Math.random() * 9000
-  }
-  room.rounds.push(round)
-  room.phase = "question"
 }
 
 export function connectedPlayers(room: Room): Player[] {
@@ -184,286 +123,432 @@ export function connectedPlayers(room: Room): Player[] {
     .filter((p): p is Player => !!p && (p.isBot || now - p.lastSeen < CONNECTED_MS))
 }
 
-function currentRound(room: Room): Round | undefined {
-  return room.rounds[room.rounds.length - 1]
-}
-
-function computeGains(round: Round, playerCount: number): Record<string, Gain> {
-  const gains: Record<string, Gain> = {}
-  const othersCount = playerCount - 1
-  const votesAgainstInsider = Object.values(round.suspectVotes).filter((sid) => sid === round.insiderId).length
-  const escaped = votesAgainstInsider * 2 < othersCount
-  const insiderVote = round.answerVotes[round.insiderId]
-  const insiderEdge =
-    insiderVote === round.q.correctIndex && escaped ? 250 : 0
-  for (const pid of Object.keys(round.answerVotes)) {
-    gains[pid] = { answer: 0, guess: 0, edge: 0 }
-  }
-  for (const [pid, choice] of Object.entries(round.answerVotes)) {
-    if (!gains[pid]) gains[pid] = { answer: 0, guess: 0, edge: 0 }
-    gains[pid].answer = choice === round.q.correctIndex ? 100 : 0
-  }
-  for (const [pid, sid] of Object.entries(round.suspectVotes)) {
-    if (!gains[pid]) gains[pid] = { answer: 0, guess: 0, edge: 0 }
-    gains[pid].guess = sid === round.insiderId ? 150 : 0
-  }
-  if (!gains[round.insiderId]) gains[round.insiderId] = { answer: 0, guess: 0, edge: 0 }
-  gains[round.insiderId].edge = insiderEdge
-  return gains
-}
-
-export function advance(room: Room, byPid: string): { ok: true } | { ok: false; error: string } {
-  const connected = connectedPlayers(room)
-  switch (room.phase) {
-    case "lobby": {
-      if (connected.length < 3) return { ok: false, error: "NEED_3_PLAYERS" }
-      startNextRound(room)
-      return { ok: true }
-    }
-    case "question": {
-      const round = currentRound(room)!
-      const missing = connected.some((p) => round.answerVotes[p.id] === undefined)
-      if (missing) return { ok: false, error: "WAITING_FOR_VOTES" }
-      room.phase = "suspicion"
-      return { ok: true }
-    }
-    case "suspicion": {
-      const round = currentRound(room)!
-      const missing = connected.some((p) => round.suspectVotes[p.id] === undefined)
-      if (missing) return { ok: false, error: "WAITING_FOR_VOTES" }
-      const gains = computeGains(round, room.players.size)
-      round.gains = gains
-      for (const [pid, gain] of Object.entries(gains)) {
-        const p = room.players.get(pid)
-        if (p) p.score += gain.answer + gain.guess + gain.edge
-      }
-      room.phase = "scores"
-      return { ok: true }
-    }
-    case "scores": {
-      if (room.roundNum >= room.totalRounds) {
-        room.phase = "gameover"
-      } else {
-        startNextRound(room)
-      }
-      return { ok: true }
-    }
-    case "gameover": {
-      // fresh game: wipe everything back to a clean lobby
-      room.phase = "lobby"
-      room.roundNum = 0
-      room.totalRounds = 5
-      room.rounds = []
-      room.usedQuestions.clear()
-      for (const p of room.players.values()) p.score = 0
-      return { ok: true }
-    }
-    default:
-      void byPid
-      return { ok: false, error: "BAD_PHASE" }
-  }
-}
-
-export function voteAnswer(
-  room: Room,
-  pid: string,
-  choice: number
-): { ok: true } | { ok: false; error: string } {
-  if (room.phase !== "question") return { ok: false, error: "BAD_PHASE" }
-  const round = currentRound(room)
-  if (!round) return { ok: false, error: "BAD_PHASE" }
-  if (!room.players.has(pid)) return { ok: false, error: "PLAYER_NOT_FOUND" }
-  if (!Number.isInteger(choice) || choice < 0 || choice > 3) return { ok: false, error: "BAD_CHOICE" }
-  round.answerVotes[pid] = choice
-  return { ok: true }
-}
-
-export function voteSuspect(
-  room: Room,
-  pid: string,
-  suspectId: string
-): { ok: true } | { ok: false; error: string } {
-  if (room.phase !== "suspicion") return { ok: false, error: "BAD_PHASE" }
-  const round = currentRound(room)
-  if (!round) return { ok: false, error: "BAD_PHASE" }
-  if (!room.players.has(pid)) return { ok: false, error: "PLAYER_NOT_FOUND" }
-  if (pid === suspectId || !room.players.has(suspectId)) return { ok: false, error: "BAD_SUSPECT" }
-  round.suspectVotes[pid] = suspectId
-  return { ok: true }
-}
-
 /* ---------- bots ---------- */
 
-const BOT_NAMES = ["Nova", "Rex", "Pixel", "Echo", "Juno", "Blitz", "Onyx", "Vega", "Rook", "Milo"]
+const BOT_NAMES = ["Thorne", "Mira", "Fenwick", "Sable", "Orrin", "Wren", "Grimm", "Elara", "Duskar", "Lyra"]
 
 export function addBot(room: Room): { ok: true } | { ok: false; error: string } {
   if (room.phase !== "lobby") return { ok: false, error: "BAD_PHASE" }
   if (room.players.size >= MAX_PLAYERS) return { ok: false, error: "ROOM_FULL" }
   const used = new Set([...room.players.values()].map((p) => p.name))
-  let name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${room.players.size}`
+  const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${room.players.size}`
   const now = Date.now()
   const id = `bot-${crypto.randomUUID()}`
-  room.players.set(id, { id, name, score: 0, joinedAt: now, lastSeen: now, isBot: true })
+  room.players.set(id, { id, name, wins: 0, joinedAt: now, lastSeen: now, isBot: true })
   room.joinOrder.push(id)
-  room.insiderQueue.push(id)
   return { ok: true }
 }
 
 export function kickBot(room: Room, botId: string): { ok: true } | { ok: false; error: string } {
   if (room.phase !== "lobby") return { ok: false, error: "BAD_PHASE" }
-  const bot = room.players.get(botId)
-  if (!bot?.isBot) return { ok: false, error: "NOT_A_BOT" }
+  if (!room.players.get(botId)?.isBot) return { ok: false, error: "NOT_A_BOT" }
   room.players.delete(botId)
   room.joinOrder = room.joinOrder.filter((id) => id !== botId)
-  room.insiderQueue = room.insiderQueue.filter((id) => id !== botId)
   return { ok: true }
+}
+
+/* ---------- game setup & flow ---------- */
+
+function livingIds(room: Room): string[] {
+  const game = room.game!
+  return room.joinOrder.filter((id) => room.players.has(id) && game.alive[id])
+}
+
+function startGame(room: Room) {
+  const ids = room.joinOrder.filter((id) => room.players.has(id))
+  const setup = setupFor(ids.length)
+  const deck: Role[] = []
+  for (let i = 0; i < setup.umbrals; i++) deck.push("umbral")
+  deck.push("seer")
+  if (setup.guardian) deck.push("guardian")
+  while (deck.length < ids.length) deck.push("villager")
+  const shuffled = shuffle(deck)
+  const roles: Record<string, Role> = {}
+  const alive: Record<string, boolean> = {}
+  ids.forEach((id, i) => {
+    roles[id] = shuffled[i]
+    alive[id] = true
+  })
+  room.game = {
+    roundNum: 1,
+    roles,
+    alive,
+    seerKnowledge: {},
+    lastProtected: null,
+    wolfVotes: {},
+    guardTarget: null,
+    seerTarget: null,
+    dayVotes: {},
+    lastNight: null,
+    lastBanished: null,
+    botActAt: {},
+  }
+  scheduleBotActs(room)
+}
+
+function scheduleBotActs(room: Room) {
+  const game = room.game!
+  const now = Date.now()
+  game.botActAt = {}
+  for (const id of livingIds(room)) {
+    const role = game.roles[id]
+    const actsTonight = role === "umbral" || role === "seer" || role === "guardian" || room.phase === "day"
+    if (room.players.get(id)?.isBot && actsTonight) {
+      game.botActAt[id] = now + 3000 + Math.random() * 9000
+    }
+  }
+}
+
+export function advance(room: Room): { ok: true } | { ok: false; error: string } {
+  switch (room.phase) {
+    case "lobby": {
+      const connected = connectedPlayers(room)
+      if (connected.length < 4 || connected.length > MAX_PLAYERS) return { ok: false, error: "NEED_4_PLAYERS" }
+      startGame(room)
+      room.phase = "night"
+      return { ok: true }
+    }
+    case "night": {
+      const game = room.game!
+      const connectedLiving = connectedPlayers(room).filter((p) => game.alive[p.id])
+      for (const p of connectedLiving) {
+        const role = game.roles[p.id]
+        if (role === "umbral" && !game.wolfVotes[p.id]) return { ok: false, error: "WAITING_FOR_ACTS" }
+        if (role === "seer" && !game.seerTarget) return { ok: false, error: "WAITING_FOR_ACTS" }
+        if (role === "guardian" && !game.guardTarget) return { ok: false, error: "WAITING_FOR_ACTS" }
+      }
+      resolveNight(room)
+      room.phase = "dawn"
+      return { ok: true }
+    }
+    case "dawn": {
+      if (!room.game) return { ok: false, error: "BAD_PHASE" }
+      room.phase = "day"
+      room.game.dayVotes = {}
+      scheduleBotActs(room)
+      return { ok: true }
+    }
+    case "day": {
+      const game = room.game!
+      const connectedLiving = connectedPlayers(room).filter((p) => game.alive[p.id])
+      if (connectedLiving.some((p) => !game.dayVotes[p.id])) return { ok: false, error: "WAITING_FOR_VOTES" }
+      resolveDay(room)
+      if (checkWin(room)) {
+        room.phase = "gameover"
+      } else {
+        room.game.roundNum += 1
+        room.game.wolfVotes = {}
+        room.game.guardTarget = null
+        room.game.seerTarget = null
+        room.game.botActAt = {}
+        scheduleBotActs(room)
+        room.phase = "night"
+      }
+      return { ok: true }
+    }
+    case "verdict":
+      return { ok: false, error: "BAD_PHASE" }
+    case "scores":
+      return { ok: false, error: "BAD_PHASE" }
+    case "gameover": {
+      room.phase = "lobby"
+      room.game = null
+      return { ok: true }
+    }
+  }
+}
+
+function majorityVote(votes: Record<string, string>, validTargets: Set<string>): string | null {
+  const tally: Record<string, number> = {}
+  for (const target of Object.values(votes)) {
+    if (validTargets.has(target)) tally[target] = (tally[target] ?? 0) + 1
+  }
+  let best: string | null = null
+  let bestCount = 0
+  let tie = false
+  for (const [target, count] of Object.entries(tally)) {
+    if (count > bestCount) {
+      best = target
+      bestCount = count
+      tie = false
+    } else if (count === bestCount) tie = true
+  }
+  return tie ? null : best
+}
+
+function resolveNight(room: Room) {
+  const game = room.game!
+  const prey = new Set(livingIds(room).filter((id) => game.roles[id] !== "umbral"))
+  const victim = majorityVote(game.wolfVotes, prey)
+  const saved = victim !== null && game.guardTarget === victim
+  if (victim && !saved) game.alive[victim] = false
+  game.lastNight = { victim: saved ? null : victim, savedBy: saved ? game.guardTarget : null }
+  game.wolfVotes = {}
+  game.seerTarget = null
+  game.guardTarget = null
+}
+
+function resolveDay(room: Room) {
+  const game = room.game!
+  const candidates = new Set(livingIds(room))
+  const condemned = majorityVote(game.dayVotes, candidates)
+  game.lastBanished = null
+  if (condemned) {
+    game.alive[condemned] = false
+    game.lastBanished = { playerId: condemned, role: game.roles[condemned] }
+  }
+  game.dayVotes = {}
+}
+
+function winnerOf(room: Room): "dawn" | "umbra" | null {
+  const game = room.game!
+  const living = livingIds(room)
+  const wolves = living.filter((id) => game.roles[id] === "umbral").length
+  const dawn = living.length - wolves
+  if (wolves === 0) return "dawn"
+  if (wolves >= dawn) return "umbra"
+  return null
+}
+
+function checkWin(room: Room): boolean {
+  const win = winnerOf(room)
+  if (!win) return false
+  const game = room.game!
+  for (const [id, role] of Object.entries(game.roles)) {
+    const p = room.players.get(id)
+    if (p && (win === "umbra") === (role === "umbral")) p.wins += 1
+  }
+  return true
+}
+
+/* ---------- player actions ---------- */
+
+function validateTarget(room: Room, pid: string, targetId: string): { ok: true; target: string } | { ok: false; error: string } {
+  const game = room.game!
+  if (!room.players.has(pid)) return { ok: false, error: "PLAYER_NOT_FOUND" }
+  if (pid === targetId) return { ok: false, error: "BAD_TARGET" }
+  if (!room.players.has(targetId) || !game.alive[targetId]) return { ok: false, error: "BAD_TARGET" }
+  return { ok: true, target: targetId }
+}
+
+export function nightAction(
+  room: Room,
+  pid: string,
+  kind: "kill" | "inspect" | "protect",
+  targetId: string
+): { ok: true } | { ok: false; error: string } {
+  if (room.phase !== "night" || !room.game) return { ok: false, error: "BAD_PHASE" }
+  const me = room.players.get(pid)
+  if (!me || !room.game.alive[pid]) return { ok: false, error: "NOT_ALIVE" }
+  const check = validateTarget(room, pid, targetId)
+  if (!check.ok) return check
+  const game = room.game
+  const role = game.roles[pid]
+
+  if (kind === "kill") {
+    if (role !== "umbral") return { ok: false, error: "WRONG_ROLE" }
+    if (game.roles[targetId] === "umbral") return { ok: false, error: "BAD_TARGET" }
+    game.wolfVotes[pid] = targetId
+    return { ok: true }
+  }
+  if (kind === "inspect") {
+    if (role !== "seer") return { ok: false, error: "WRONG_ROLE" }
+    game.seerTarget = targetId
+    game.seerKnowledge[targetId] = game.roles[targetId]
+    return { ok: true }
+  }
+  if (kind === "protect") {
+    if (role !== "guardian") return { ok: false, error: "WRONG_ROLE" }
+    if (targetId === game.lastProtected) return { ok: false, error: "SAME_AS_LAST_NIGHT" }
+    game.guardTarget = targetId
+    return { ok: true }
+  }
+  return { ok: false, error: "BAD_REQUEST" }
+}
+
+export function dayVote(room: Room, pid: string, targetId: string): { ok: true } | { ok: false; error: string } {
+  if (room.phase !== "day" || !room.game) return { ok: false, error: "BAD_PHASE" }
+  const me = room.players.get(pid)
+  if (!me || !room.game.alive[pid]) return { ok: false, error: "NOT_ALIVE" }
+  const check = validateTarget(room, pid, targetId)
+  if (!check.ok) return check
+  room.game.dayVotes[pid] = targetId
+  return { ok: true }
+}
+
+/* ---------- bot brains ---------- */
+
+function botNightAct(room: Room, botId: string) {
+  const game = room.game!
+  const role = game.roles[botId]
+  const living = livingIds(room)
+  if (role === "umbral") {
+    const prey = living.filter((id) => game.roles[id] !== "umbral")
+    if (prey.length && !game.wolfVotes[botId]) game.wolfVotes[botId] = pick(prey)
+  } else if (role === "seer") {
+    const unknown = living.filter((id) => id !== botId && game.seerKnowledge[id] === undefined)
+    const target = unknown.length ? pick(unknown) : living.find((id) => id !== botId)
+    if (target) {
+      game.seerTarget = target
+      game.seerKnowledge[target] = game.roles[target]
+    }
+  } else if (role === "guardian") {
+    const options = living.filter((id) => id !== botId && id !== game.lastProtected)
+    if (options.length) {
+      game.guardTarget = pick(options)
+      game.lastProtected = game.guardTarget
+    }
+  }
+}
+
+function botDayVote(room: Room, botId: string) {
+  const game = room.game!
+  const living = livingIds(room).filter((id) => id !== botId)
+  if (!living.length || game.dayVotes[botId]) return
+  const role = game.roles[botId]
+  if (role === "seer") {
+    const knownWolf = living.find((id) => game.seerKnowledge[id] === "umbral")
+    if (knownWolf) {
+      game.dayVotes[botId] = knownWolf
+      return
+    }
+  }
+  if (role === "umbral") {
+    const innocents = living.filter((id) => game.roles[id] !== "umbral")
+    if (innocents.length) {
+      game.dayVotes[botId] = pick(innocents)
+      return
+    }
+  }
+  game.dayVotes[botId] = pick(living)
 }
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-function botAnswerChoice(round: Round, botId: string): number {
-  if (round.insiderId === botId) return round.q.correctIndex
-  if (Math.random() < 0.45) return round.q.correctIndex
-  const wrong = [0, 1, 2, 3].filter((i) => i !== round.q.correctIndex)
-  return pick(wrong)
-}
-
-function botSuspectChoice(room: Room, round: Round, botId: string): string {
-  const candidates = room.joinOrder.filter((id) => id !== botId && room.players.has(id))
-  if (!candidates.length) return botId // should never happen with >=3 players
-  const correctOthers = candidates.filter((id) => round.answerVotes[id] === round.q.correctIndex)
-  if (round.insiderId === botId) {
-    // the cheat deflects onto someone who looks confident
-    return correctOthers.length ? pick(correctOthers) : pick(candidates)
-  }
-  // honest bots mostly grow suspicious of anyone who nailed the answer
-  if (correctOthers.length && Math.random() < 0.65) return pick(correctOthers)
-  return pick(candidates)
-}
-
 export function tickBots(room: Room) {
+  const game = room.game
+  if (!game) return
+  if (room.phase !== "night" && room.phase !== "day") return
   const now = Date.now()
-  const round = currentRound(room)
-  if (!round) return
-  if (room.phase === "question") {
-    for (const [bid, at] of Object.entries(round.botAnswerAt)) {
-      if (now >= at && round.answerVotes[bid] === undefined && room.players.get(bid)?.isBot) {
-        round.answerVotes[bid] = botAnswerChoice(round, bid)
-      }
-    }
-  } else if (room.phase === "suspicion") {
-    if (!Object.keys(round.botSuspectAt).length) {
-      for (const p of room.players.values()) {
-        if (p.isBot) round.botSuspectAt[p.id] = now + 3000 + Math.random() * 9000
-      }
-    }
-    for (const [bid, at] of Object.entries(round.botSuspectAt)) {
-      if (now >= at && round.suspectVotes[bid] === undefined && room.players.get(bid)?.isBot) {
-        round.suspectVotes[bid] = botSuspectChoice(room, round, bid)
-      }
-    }
+  for (const [bid, at] of Object.entries(game.botActAt)) {
+    if (now < at || !game.alive[bid] || !room.players.get(bid)?.isBot) continue
+    if (room.phase === "night") botNightAct(room, bid)
+    else botDayVote(room, bid)
   }
 }
+
+/* ---------- view ---------- */
 
 export interface PlayerView {
   code: string
   phase: Phase
   roundNum: number
-  totalRounds: number
   meId: string
-  players: Array<{ id: string; name: string; score: number; connected: boolean; isBot: boolean }>
-  question: { text: string; options: string[] } | null
-  myAnswer: number | null
-  mySuspect: string | null
-  correctIndex: number | null
-  answerVotesPublic: Record<string, number> | null
-  suspectVotesPublic: Record<string, string> | null
-  insiderId: string | null
-  gains: Record<string, Gain> | null
-  iAmInsider: boolean
+  players: Array<{ id: string; name: string; wins: number; alive: boolean; connected: boolean; isBot: boolean }>
+  myRole: Role | null
+  fellowUmbrels: string[]
+  seerKnowledge: Record<string, Role> | null
+  needsMyAction: boolean
   votesLocked: number
   votesNeeded: number
-  suspectsLocked: number
-  suspectsNeeded: number
-  winnerIds: string[] | null
+  lastNight: { victim: string | null; victimName: string | null; savedBy: string | null; savedByName: string | null } | null
+  lastBanished: { playerId: string; name: string; role: Role } | null
+  ghost: boolean
+  revealedRoles: Record<string, Role> | null
+  winner: "dawn" | "umbra" | null
+  setup: { umbrals: number; seer: boolean; guardian: boolean }
 }
 
 export function buildView(room: Room, pid: string): PlayerView {
   const now = Date.now()
-  const me = room.players.get(pid)
   const players = room.joinOrder
     .map((id) => room.players.get(id))
     .filter((p): p is Player => !!p)
     .map((p) => ({
       id: p.id,
       name: p.name,
-      score: p.score,
+      wins: p.wins,
+      alive: room.game ? !!room.game.alive[p.id] : true,
       connected: p.isBot || now - p.lastSeen < CONNECTED_MS,
       isBot: !!p.isBot,
     }))
-  const connected = players.filter((p) => p.connected)
+  const game = room.game
 
   const view: PlayerView = {
     code: room.code,
     phase: room.phase,
-    roundNum: room.roundNum,
-    totalRounds: room.totalRounds,
+    roundNum: game?.roundNum ?? 0,
     meId: pid,
     players,
-    question: null,
-    myAnswer: null,
-    mySuspect: null,
-    correctIndex: null,
-    answerVotesPublic: null,
-    suspectVotesPublic: null,
-    insiderId: null,
-    gains: null,
-    iAmInsider: false,
+    myRole: null,
+    fellowUmbrels: [],
+    seerKnowledge: null,
+    needsMyAction: false,
     votesLocked: 0,
-    votesNeeded: connected.length,
-    suspectsLocked: 0,
-    suspectsNeeded: connected.length,
-    winnerIds: null,
+    votesNeeded: 0,
+    lastNight: null,
+    lastBanished: null,
+    ghost: false,
+    revealedRoles: null,
+    winner: null,
+    setup: setupFor(players.length),
   }
 
+  if (!game) return view
+
+  view.roundNum = game.roundNum
+  view.myRole = game.roles[pid] ?? null
+  view.ghost = !game.alive[pid]
+
+  if (view.myRole === "umbral") {
+    view.fellowUmbrels = Object.entries(game.roles)
+      .filter(([id, role]) => role === "umbral" && id !== pid)
+      .map(([id]) => id)
+  }
+  if (view.myRole === "seer") {
+    view.seerKnowledge = { ...game.seerKnowledge }
+  }
+
+  const connectedLiving = connectedPlayers(room).filter((p) => game.alive[p.id])
+
+  if (room.phase === "night" && !view.ghost) {
+    const role = game.roles[pid]
+    view.needsMyAction =
+      (role === "umbral" && !game.wolfVotes[pid]) ||
+      (role === "seer" && !game.seerTarget) ||
+      (role === "guardian" && !game.guardTarget)
+  }
+
+  if (room.phase === "day") {
+    view.votesLocked = Object.keys(game.dayVotes).length
+    view.votesNeeded = connectedLiving.length
+    view.needsMyAction = !view.ghost && !game.dayVotes[pid]
+  }
+
+  const nameOf = (id: string | null) => (id ? room.players.get(id)?.name ?? null : null)
+
+  if ((room.phase === "dawn" || room.phase === "day" || room.phase === "verdict" || room.phase === "gameover") && game.lastNight) {
+    view.lastNight = {
+      victim: game.lastNight.victim,
+      victimName: nameOf(game.lastNight.victim),
+      savedBy: game.lastNight.savedBy,
+      savedByName: nameOf(game.lastNight.savedBy),
+    }
+  }
+  if (room.phase === "verdict" || room.phase === "gameover") {
+    view.lastBanished = game.lastBanished
+      ? { playerId: game.lastBanished.playerId, name: nameOf(game.lastBanished.playerId) ?? "?", role: game.lastBanished.role }
+      : null
+  }
+
+  // dead players haunt the village and see every role; everyone sees all at gameover
+  if (view.ghost || room.phase === "gameover") {
+    view.revealedRoles = { ...game.roles }
+  }
   if (room.phase === "gameover") {
-    const top = Math.max(...players.map((p) => p.score), 0)
-    view.winnerIds = players.filter((p) => p.score === top && top > 0).map((p) => p.id)
-  }
-
-  const round = currentRound(room)
-  if (!round || room.phase === "lobby") return view
-
-  view.question = { text: round.q.text, options: round.q.options }
-
-  if (room.phase === "question") {
-    view.iAmInsider = round.insiderId === pid
-    // the edge: only the insider's own view ever carries this during voting
-    if (view.iAmInsider) view.correctIndex = round.q.correctIndex
-    view.myAnswer = round.answerVotes[pid] ?? null
-    view.votesLocked = Object.keys(round.answerVotes).length
-  }
-
-  if (room.phase === "suspicion") {
-    // answer votes become public knowledge here; insider identity stays secret
-    view.correctIndex = round.q.correctIndex
-    view.answerVotesPublic = { ...round.answerVotes }
-    view.myAnswer = round.answerVotes[pid] ?? null
-    view.mySuspect = round.suspectVotes[pid] ?? null
-    view.iAmInsider = round.insiderId === pid
-    view.votesLocked = Object.keys(round.answerVotes).length
-    view.suspectsLocked = Object.keys(round.suspectVotes).length
-  }
-
-  if (room.phase === "scores" || room.phase === "gameover") {
-    view.correctIndex = round.q.correctIndex
-    view.answerVotesPublic = { ...round.answerVotes }
-    view.suspectVotesPublic = { ...round.suspectVotes }
-    view.insiderId = round.insiderId
-    view.iAmInsider = round.insiderId === pid
-    view.gains = round.gains
+    view.winner = winnerOf(room)
   }
 
   return view
