@@ -6,6 +6,7 @@ import { badgeById } from "@/lib/decisions/badges";
 import { combinationCount } from "@/lib/decisions/generator";
 import { levelFromXp } from "@/lib/decisions/run";
 import type { Profile } from "@/lib/decisions/storage";
+import { getTheme } from "@/lib/decisions/themes";
 import {
   Burst,
   Chip,
@@ -45,6 +46,7 @@ export default function HomeScreen({
   const comboCount = combinationCount();
   const recentBadges = profile.badges.slice(-3);
   const xpPct = Math.min(100, (lvl.into / lvl.need) * 100);
+  const th = getTheme(profile.activeTheme);
 
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-[max(env(safe-area-inset-top),12px)] text-white">
@@ -61,7 +63,10 @@ export default function HomeScreen({
             className="glass w-full rounded-2xl border border-white/25 px-3.5 py-2 text-left active:scale-[0.98] transition"
           >
             <div className="flex items-center gap-2">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-fuchsia-400 to-violet-600 text-sm shadow">
+              <span
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm shadow"
+                style={{ background: `linear-gradient(135deg, ${th.btnFrom}, ${th.btnVia})` }}
+              >
                 {profile.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0">
@@ -165,9 +170,10 @@ export default function HomeScreen({
             }}
             burstKey={burst}
             onBurstDone={() => setBurst(null)}
-            from="#d946ef"
-            via="#7c2ae8"
-            to="#4f46e5"
+            from={th.btnFrom}
+            via={th.btnVia}
+            to={th.btnTo}
+            glow={th.btnGlow}
           >
             <span className="text-2xl leading-none">▶</span>
             <span className="text-xl font-black uppercase tracking-wide">Play Endless</span>
@@ -194,11 +200,10 @@ export default function HomeScreen({
                 </span>
               </span>
               <span
-                className={`rounded-full px-3 py-1 text-xs font-black ${
-                  dailyDone ? "bg-white/15 text-white/60" : "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow"
-                }`}
+                className="grid h-10 w-10 place-items-center rounded-xl text-lg shadow"
+                style={{ background: `linear-gradient(135deg, ${th.accent}, ${th.btnTo})` }}
               >
-                {dailyDone ? "✓" : "GO"}
+                📅
               </span>
             </div>
           </motion.button>

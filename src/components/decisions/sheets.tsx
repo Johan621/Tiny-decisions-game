@@ -375,8 +375,43 @@ function ThemeCard({
   onAd: () => void;
 }) {
   return (
-    <motion.div whileTap={{ scale: 0.97 }} className="overflow-hidden rounded-3xl border border-white/15 bg-white/5">
-      <div className="h-20 w-full" style={{ background: theme.bg }} />
+    <motion.div
+      whileTap={{ scale: 0.97 }}
+      className={`overflow-hidden rounded-3xl border bg-white/5 ${
+        active ? "border-emerald-300/70 ring-2 ring-emerald-300/40" : "border-white/15"
+      }`}
+    >
+      {/* mini scene preview */}
+      <div className="relative h-28 w-full overflow-hidden" style={{ background: theme.bg }}>
+        <div
+          className="absolute left-3 right-10 top-3 rounded-lg px-2 py-1.5"
+          style={{ background: theme.card, border: "1px solid rgba(255,255,255,0.25)" }}
+        >
+          <div className="mx-auto mb-1 h-0.5 w-8 rounded-full" style={{ background: theme.sub }} />
+          <div className="mx-auto h-1 w-4/5 rounded-full" style={{ background: theme.text, opacity: 0.55 }} />
+        </div>
+        <div className="absolute bottom-2.5 left-3 right-3 flex gap-1.5">
+          <div
+            className="h-5 flex-1 rounded-md shadow"
+            style={{ background: `linear-gradient(135deg, ${theme.btnFrom}, ${theme.btnTo})` }}
+          />
+          <div
+            className="h-5 flex-1 rounded-md"
+            style={{ background: theme.cardSolid, border: `1.5px solid ${theme.accent}` }}
+          />
+        </div>
+        <div
+          className="absolute bottom-[26px] left-6 right-6 h-1 overflow-hidden rounded-full"
+          style={{ background: theme.card }}
+        >
+          <div className="h-full w-2/3 rounded-full" style={{ background: theme.timer }} />
+        </div>
+        {active && (
+          <span className="absolute right-2 top-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-950">
+            Active
+          </span>
+        )}
+      </div>
       <div className="p-3">
         <p className="truncate text-sm font-extrabold text-white">
           {theme.premium && "👑 "} {theme.name}
@@ -386,7 +421,9 @@ function ThemeCard({
             disabled={active}
             onClick={onActivate}
             className={`mt-2 w-full rounded-xl py-2 text-xs font-black transition ${
-              active ? "bg-emerald-400/30 text-emerald-200" : "bg-white text-slate-900 active:scale-[0.97]"
+              active
+                ? "bg-emerald-400/30 text-emerald-200"
+                : "bg-white text-slate-900 active:scale-[0.97]"
             }`}
           >
             {active ? "✓ Active" : "Use theme"}

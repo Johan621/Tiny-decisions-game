@@ -4,10 +4,12 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { badgeById } from "@/lib/decisions/badges";
 import type { RunSummary } from "@/lib/decisions/run";
+import type { ThemeDef } from "@/lib/decisions/themes";
 import { Burst, Floaters, GlassCard, GradientButton } from "./kit";
 
 export default function ResultScreen({
   run,
+  theme,
   newBadgeIds,
   xpGain,
   levelsGained,
@@ -21,6 +23,7 @@ export default function ResultScreen({
   onLeaderboard,
 }: {
   run: RunSummary;
+  theme: ThemeDef;
   newBadgeIds: string[];
   xpGain: number;
   levelsGained: number;
@@ -173,6 +176,10 @@ export default function ResultScreen({
       {/* actions */}
       <div className="relative z-10 mt-auto space-y-2.5 pt-5">
         <GradientButton
+          from={theme.btnFrom}
+          via={theme.btnVia}
+          to={theme.btnTo}
+          glow={theme.btnGlow}
           onClick={() => {
             setBurstKey(Date.now());
             window.setTimeout(onPlayAgain, 140);

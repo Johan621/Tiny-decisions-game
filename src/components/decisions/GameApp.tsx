@@ -286,6 +286,7 @@ export default function GameApp() {
           >
             <ResultScreen
               run={lastRun}
+              theme={activeThemeDef}
               newBadgeIds={newBadges}
               xpGain={lastLevel.xpGain}
               levelsGained={lastLevel.gained}
