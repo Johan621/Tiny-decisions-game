@@ -3,8 +3,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { BADGES, badgeById } from "@/lib/decisions/badges";
-import { todayKey, yesterdayKey } from "@/lib/decisions/generator";
-import { LOGIN_REWARDS, nextLoginRewardPos } from "@/lib/decisions/run";
+import { combinationCount, todayKey, yesterdayKey } from "@/lib/decisions/generator";
+import { levelFromXp, LOGIN_REWARDS, nextLoginRewardPos, RARITIES } from "@/lib/decisions/run";
 import type { Profile } from "@/lib/decisions/storage";
 import { THEMES, type ThemeDef } from "@/lib/decisions/themes";
 import { Sheet } from "./ui";
@@ -226,6 +226,96 @@ export function DailyRewardsSheet({
         Login streak: 🔥 {profile.loginStreak} day{profile.loginStreak === 1 ? "" : "s"}
       </p>
     </Sheet>
+  );
+}
+
+export function StatsSheet({
+  open,
+  onClose,
+  profile,
+}: {
+  open: boolean;
+  onClose: () => void;
+  profile: Profile;
+}) {
+  const lvl = levelFromXp(profile.xp);
+  const total = combinationCount();
+  const explored = Math.min(100, (profile.totalChoices / total) * 100);
+  const rc = profile.rarityCounts;
+  const avg =
+    profile.runs.length > 0
+      ? Math.round(profile.runs.reduce((s, r) => s + r.s, 0) / profile.runs.length)
+      : 0;
+
+  return (
+    <Sheet open={open} onClose={onClose} title="📊 Statistics">
+      <Section title="Progression">
+        <Cell label="Level" value={`${lvl.lvl}`} />
+        <Cell label="Total XP" value={`⭐ ${profile.xp.toLocaleString("en-IN")}`} />
+        <Cell label="Coins" value={`🪙 ${profile.coins}`} />
+        <Cell label="Games" value={`${profile.games}`} />
+      </Section>
+
+      <Section title="Records">
+        <Cell label="Best score" value={profile.best.toLocaleString("en-IN")} />
+        <Cell label="Daily best" value={profile.dailyBest.toLocaleString("en-IN")} />
+        <Cell label="Best combo" value={`🔥 ×${profile.bestCombo}`} />
+        <Cell
+          label="Fastest tap"
+          value={profile.fastestMs !== null ? `${(profile.fastestMs / 1000).toFixed(2)}s` : "—"}
+        />
+      </Section>
+
+      <Section title="Lifetime">
+        <Cell label="Choices made" value={profile.totalChoices.toLocaleString("en-IN")} />
+        <Cell label="Events triggered" value={`🎁 ${profile.eventsTotal}`} />
+        <Cell label="Dailies done" value={`📅 ${profile.dailyCompletions}`} />
+        <Cell label="Login streak" value={`🔥 ${profile.loginStreak}d`} />
+      </Section>
+
+      <Section title="Rarity sightings">
+        {(["common", "rare", "epic", "legendary"] as const).map((r) => (
+          <Cell key={r} label={`${RARITIES[r].emoji} ${RARITIES[r].label}`} value={`${rc[r]}`} color={RARITIES[r].color} />
+        ))}
+      </Section>
+
+      <div className="mt-4 rounded-2xl border border-white/15 bg-white/5 p-4">
+        <p className="text-xs font-bold uppercase tracking-widest opacity-70">Dilemma explorer</p>
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-black/30">
+          <div className="h-full rounded-full bg-violet-400" style={{ width: `${Math.max(1, explored)}%` }} />
+        </div>
+        <p className="mt-2 text-xs font-semibold opacity-65">
+          You have faced{" "}
+          <b>{profile.totalChoices.toLocaleString("en-IN")}</b> of{" "}
+          <b>{total.toLocaleString("en-IN")}</b> possible dilemmas ({explored.toFixed(explored < 1 && explored > 0 ? 2 : 1)}%)
+        </p>
+      </div>
+
+      <div className="mt-3 mb-2 rounded-2xl border border-white/15 bg-white/5 p-4 text-xs font-semibold opacity-75">
+        Recent average score: <b className="text-white">{avg.toLocaleString("en-IN")}</b> · Runs recorded:{" "}
+        <b className="text-white">{profile.runs.length}</b>
+      </div>
+    </Sheet>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] opacity-55">{title}</p>
+      <div className="grid grid-cols-2 gap-2">{children}</div>
+    </div>
+  );
+}
+
+function Cell({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="rounded-2xl border border-white/12 bg-white/6 px-3 py-2.5">
+      <p className="truncate text-[10px] font-bold uppercase tracking-widest opacity-60">{label}</p>
+      <p className="mt-0.5 truncate text-base font-black tabular-nums" style={{ color }}>
+        {value}
+      </p>
+    </div>
   );
 }
 

@@ -115,6 +115,20 @@ export const BADGES: BadgeDef[] = [
     title: "Gift Guardian",
     desc: "7-day login streak",
   },
+  {
+    id: "jackpot",
+    emoji: "🎰",
+    name: "Jackpot!",
+    title: "Legend Hunter",
+    desc: "Answer a Legendary question",
+  },
+  {
+    id: "storm_chaser",
+    emoji: "🌪️",
+    name: "Storm Chaser",
+    title: "Event Chaser",
+    desc: "Trigger 25 surprise events (lifetime)",
+  },
 ];
 
 export function badgeById(id: string): BadgeDef | undefined {
@@ -128,6 +142,7 @@ export interface RunStatsInput {
   fastestMs: number | null;
   eventsSeen: number;
   dailyCompleted: boolean;
+  legendaries: number;
 }
 
 /** Returns ids of newly earned badges given a finished run + updated profile. */
@@ -156,6 +171,8 @@ export function evaluateBadges(run: RunStatsInput, profileAfter: Profile): strin
   if (levelFromXp(profileAfter.xp).lvl >= 5) grant("level_5");
   if (levelFromXp(profileAfter.xp).lvl >= 10) grant("level_10");
   if (profileAfter.loginStreak >= 7) grant("login_7");
+  if (run.legendaries > 0) grant("jackpot");
+  if (profileAfter.eventsTotal >= 25) grant("storm_chaser");
 
   return earned;
 }

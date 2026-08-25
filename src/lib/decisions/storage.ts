@@ -28,6 +28,10 @@ export interface Profile {
   xp: number;
   loginLast: string | null;
   loginStreak: number;
+  recentKeys: string[];
+  rarityCounts: Record<"common" | "rare" | "epic" | "legendary", number>;
+  eventsTotal: number;
+  dailyCompletions: number;
 }
 
 const KEY = "etd.profile.v1";
@@ -54,6 +58,10 @@ export function defaultProfile(): Profile {
     xp: 0,
     loginLast: null,
     loginStreak: 0,
+    recentKeys: [],
+    rarityCounts: { common: 0, rare: 0, epic: 0, legendary: 0 },
+    eventsTotal: 0,
+    dailyCompletions: 0,
   };
 }
 
@@ -73,6 +81,11 @@ export function loadProfile(): Profile {
           : base.themes,
       badges: Array.isArray(parsed.badges) ? parsed.badges : [],
       runs: Array.isArray(parsed.runs) ? parsed.runs.slice(0, 30) : [],
+      recentKeys: Array.isArray(parsed.recentKeys) ? parsed.recentKeys.slice(-500) : [],
+      rarityCounts: {
+        ...base.rarityCounts,
+        ...(parsed.rarityCounts ?? {}),
+      },
       activeTheme:
         parsed.activeTheme &&
         (parsed.themes ?? base.themes).includes(parsed.activeTheme)

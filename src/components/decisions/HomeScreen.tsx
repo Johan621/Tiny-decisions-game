@@ -18,7 +18,7 @@ export default function HomeScreen({
   profile: Profile;
   onPlay: () => void;
   onDaily: () => void;
-  onOpenSheet: (s: "leaderboard" | "themes" | "badges" | "rewards") => void;
+  onOpenSheet: (s: "leaderboard" | "themes" | "badges" | "rewards" | "stats") => void;
   onToggleSound: () => void;
   onRename: (name: string) => void;
 }) {
@@ -133,10 +133,11 @@ export default function HomeScreen({
           </span>
         </motion.button>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-1.5">
           <NavChip emoji="🏆" label="Ranks" onClick={() => onOpenSheet("leaderboard")} />
           <NavChip emoji="🎨" label="Themes" onClick={() => onOpenSheet("themes")} />
           <NavChip emoji="🏅" label="Badges" onClick={() => onOpenSheet("badges")} />
+          <NavChip emoji="📊" label="Stats" onClick={() => onOpenSheet("stats")} />
           <NavChip emoji="🎁" label="Gifts" dot={rewardReady} onClick={() => onOpenSheet("rewards")} />
         </div>
 

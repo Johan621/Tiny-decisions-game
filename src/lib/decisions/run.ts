@@ -1,4 +1,4 @@
-import type { Rng } from "./generator";
+import type { Rarity, Rng } from "./generator";
 
 export interface RunSummary {
   mode: "endless" | "daily";
@@ -9,7 +9,24 @@ export interface RunSummary {
   eventsSeen: number;
   coinsEarned: number;
   dailyCompleted: boolean;
+  legendaries: number;
+  rarityTally: Record<"common" | "rare" | "epic" | "legendary", number>;
 }
+
+export interface RarityMeta {
+  id: Rarity;
+  label: string;
+  emoji: string;
+  mult: number;
+  color: string;
+}
+
+export const RARITIES: Record<Rarity, RarityMeta> = {
+  common: { id: "common", label: "Common", emoji: "⚪", mult: 1, color: "#dcdce6" },
+  rare: { id: "rare", label: "Rare", emoji: "🔵", mult: 1.5, color: "#57b0ff" },
+  epic: { id: "epic", label: "Epic", emoji: "🟣", mult: 2, color: "#c46bff" },
+  legendary: { id: "legendary", label: "Legendary", emoji: "🟡", mult: 3, color: "#ffd54f" },
+};
 
 export type EventId = "double" | "freeze" | "shield" | "rain" | "mirror";
 
@@ -41,8 +58,13 @@ export function multiplierFor(combo: number): number {
   return Math.min(8, 1 + Math.floor(combo / 4));
 }
 
-export function pointsFor(frac: number, mult: number, eventMult: number): number {
-  return Math.max(1, Math.round((10 + 15 * clamp(frac, 0, 1)) * mult * eventMult));
+export function pointsFor(
+  frac: number,
+  mult: number,
+  eventMult: number,
+  rarityMult: number
+): number {
+  return Math.max(1, Math.round((10 + 15 * clamp(frac, 0, 1)) * mult * eventMult * rarityMult));
 }
 
 export function coinsFor(score: number): number {

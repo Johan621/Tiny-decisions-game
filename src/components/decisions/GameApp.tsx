@@ -17,11 +17,11 @@ import { getTheme, THEMES } from "@/lib/decisions/themes";
 import HomeScreen from "./HomeScreen";
 import PlayScreen from "./PlayScreen";
 import ResultScreen from "./ResultScreen";
-import { BadgesSheet, DailyRewardsSheet, LeaderboardSheet, ThemesSheet } from "./sheets";
+import { BadgesSheet, DailyRewardsSheet, LeaderboardSheet, StatsSheet, ThemesSheet } from "./sheets";
 import { AdModal } from "./ui";
 
 type Screen = "home" | "play" | "result";
-type SheetKind = "leaderboard" | "themes" | "badges" | "rewards" | null;
+type SheetKind = "leaderboard" | "themes" | "badges" | "rewards" | "stats" | null;
 
 function submitScore(p: Profile, score: number, mode: string): void {
   fetch("/api/leaderboard", {
@@ -145,6 +145,7 @@ export default function GameApp() {
             fastestMs: s.fastestMs,
             eventsSeen: s.eventsSeen,
             dailyCompleted: s.dailyCompleted,
+            legendaries: s.legendaries,
           },
           np
         );
@@ -152,7 +153,17 @@ export default function GameApp() {
           np.badges = [...np.badges, ...earned];
           if (!np.title && earned[0]) np.title = earned[0];
         }
-        return np;
+        return {
+          ...np,
+          rarityCounts: {
+            common: np.rarityCounts.common + s.rarityTally.common,
+            rare: np.rarityCounts.rare + s.rarityTally.rare,
+            epic: np.rarityCounts.epic + s.rarityTally.epic,
+            legendary: np.rarityCounts.legendary + s.rarityTally.legendary,
+          },
+          eventsTotal: np.eventsTotal + s.eventsSeen,
+          dailyCompletions: np.dailyCompletions + (s.dailyCompleted ? 1 : 0),
+        };
       });
 
       submitScore(profileRef.current!, s.score, s.mode);
@@ -232,6 +243,13 @@ export default function GameApp() {
               mode={runMode}
               theme={activeThemeDef}
               soundOn={profile.sound}
+              recentInit={profile.recentKeys}
+              onRecent={(keys) =>
+                update((p) => ({
+                  ...p,
+                  recentKeys: Array.from(new Set([...p.recentKeys, ...keys])).slice(-500),
+                }))
+              }
               onFinish={finishRun}
               onQuit={() => setScreen("home")}
             />
@@ -284,6 +302,7 @@ export default function GameApp() {
         profile={profile}
         onSelectTitle={(id) => update((p) => ({ ...p, title: id }))}
       />
+      <StatsSheet open={sheet === "stats"} onClose={() => setSheet(null)} profile={profile} />
 
       {/* offline indicator */}
       {offline && (

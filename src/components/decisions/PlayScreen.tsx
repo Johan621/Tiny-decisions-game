@@ -21,6 +21,7 @@ import {
   multiplierFor,
   pickEvent,
   pointsFor,
+  RARITIES,
   timeLimitMs,
   type EventId,
   type RunSummary,
@@ -40,17 +41,22 @@ export default function PlayScreen({
   mode,
   theme,
   soundOn,
+  recentInit,
   onFinish,
+  onRecent,
   onQuit,
 }: {
   mode: "endless" | "daily";
   theme: ThemeDef;
   soundOn: boolean;
+  recentInit: string[];
   onFinish: (s: RunSummary) => void;
+  onRecent: (seenKeys: string[]) => void;
   onQuit: () => void;
 }) {
   const rngRef = useRef<Rng>(mulberry32(mode === "daily" ? dailySeed() : (Math.random() * 2 ** 31) | 0));
-  const recentRef = useRef<Set<string>>(new Set());
+  const recentRef = useRef<Set<string>>(new Set(recentInit));
+  const seenOrderRef = useRef<string[]>([]);
   const queueRef = useRef<Question[]>([]);
   const dailyAllRef = useRef<Question[] | null>(null);
   const dailyIdxRef = useRef(0);
@@ -74,7 +80,13 @@ export default function PlayScreen({
   const durRef = useRef(5000);
   const startRef = useRef(0);
   const finishedRef = useRef(false);
-  const statsRef = useRef({ score: 0, bestCombo: 0, fastestMs: null as number | null });
+  const statsRef = useRef({
+    score: 0,
+    bestCombo: 0,
+    fastestMs: null as number | null,
+    legendaries: 0,
+    tally: { common: 0, rare: 0, epic: 0, legendary: 0 },
+  });
   const barRef = useRef<HTMLDivElement>(null);
 
   const prompt = useMemo(() => PROMPTS[index % PROMPTS.length]!, [index]);
@@ -100,6 +112,7 @@ export default function PlayScreen({
   const beginRound = useCallback(() => {
     refillQueue();
     const q = queueRef.current.shift() ?? nextQuestion(rngRef.current, recentRef.current);
+    seenOrderRef.current.push(q.key);
     setQuestion(q);
     setIndex((i) => i + 1);
     setPhase("ask");
@@ -133,6 +146,7 @@ export default function PlayScreen({
       blip("bad", soundOn);
       buzz([40, 60, 90], soundOn);
       const s = statsRef.current;
+      onRecent(seenOrderRef.current);
       onFinish({
         mode,
         score: s.score,
@@ -142,15 +156,17 @@ export default function PlayScreen({
         eventsSeen,
         coinsEarned: coinsFor(s.score) + bonusCoins,
         dailyCompleted,
+        legendaries: s.legendaries,
+        rarityTally: s.tally,
       });
     },
-    [eventsSeen, bonusCoins, index, mode, onFinish, soundOn]
+    [eventsSeen, bonusCoins, index, mode, onFinish, onRecent, soundOn]
   );
 
   const maybeTriggerEvent = useCallback(
     (nextChoices: number): boolean => {
       if (mode === "daily") return false;
-      if (nextChoices > 0 && nextChoices % 20 === 0) {
+      if (nextChoices > 0 && nextChoices % 15 === 0) {
         const ev = pickEvent(rngRef.current, lastEventRef.current);
         lastEventRef.current = ev;
         setBanner(ev);
@@ -198,19 +214,37 @@ export default function PlayScreen({
       if (a.double > 0) a.double -= 1;
       if (a.mirror > 0) a.mirror -= 1;
 
-      const pts = pointsFor(fracLeft, multiplierFor(nextCombo), eventMult);
+      const rarityMeta = RARITIES[question.rarity];
+      const pts = pointsFor(fracLeft, multiplierFor(nextCombo), eventMult, rarityMeta.mult);
       const newScore = score + pts;
       const newBest = Math.max(bestCombo, nextCombo);
       const newFast =
         fastestMs === null ? elapsed : Math.min(fastestMs, Math.round(elapsed));
+      const newLeg = question.rarity === "legendary" ? statsRef.current.legendaries + 1 : statsRef.current.legendaries;
 
-      statsRef.current = { score: newScore, bestCombo: newBest, fastestMs: newFast };
+      statsRef.current = {
+        score: newScore,
+        bestCombo: newBest,
+        fastestMs: newFast,
+        legendaries: newLeg,
+        tally: {
+          ...statsRef.current.tally,
+          [question.rarity]: statsRef.current.tally[question.rarity] + 1,
+        },
+      };
       setScore(newScore);
       setCombo(nextCombo);
       setBestCombo(newBest);
       setFastestMs(newFast);
+      if (question.rarity === "legendary") {
+        setBonusCoins((c) => c + 5);
+        blip("event", soundOn);
+      }
       setRevealInfo({
-        quip: REVEAL_QUIPS[Math.floor(Math.random() * REVEAL_QUIPS.length)]!,
+        quip:
+          question.rarity === "legendary"
+            ? `${rarityMeta.emoji} LEGENDARY! +5 🪙`
+            : REVEAL_QUIPS[Math.floor(Math.random() * REVEAL_QUIPS.length)]!,
         pts,
         side,
       });
@@ -286,7 +320,10 @@ export default function PlayScreen({
       {/* HUD */}
       <div className="flex items-center justify-between gap-2">
         <button
-          onClick={onQuit}
+          onClick={() => {
+            if (!finishedRef.current) onRecent(seenOrderRef.current);
+            onQuit();
+          }}
           className="grid h-10 w-10 place-items-center rounded-full text-lg font-bold active:scale-90 transition-transform"
           style={{ background: theme.card, color: theme.text }}
           aria-label="Quit run"
@@ -318,6 +355,15 @@ export default function PlayScreen({
             >
               {cat.emoji} {cat.label}
               {mode === "daily" ? ` · ${Math.min(index, DAILY_LENGTH)}/${DAILY_LENGTH}` : ` · Q${index}`}
+              {question && (
+                <>
+                  {" · "}
+                  <span style={{ color: RARITIES[question.rarity].color }}>
+                    {RARITIES[question.rarity].emoji} {RARITIES[question.rarity].label}
+                    {question.rarity !== "common" ? ` ×${RARITIES[question.rarity].mult}` : ""}
+                  </span>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -377,7 +423,15 @@ export default function PlayScreen({
                 revealInfo?.side === (i === 0 ? "a" : "b")
                   ? theme.accent
                   : theme.cardSolid,
-              borderColor: "rgba(255,255,255,0.35)",
+              borderColor:
+                question && question.rarity !== "common"
+                  ? RARITIES[question.rarity].color
+                  : "rgba(255,255,255,0.35)",
+              borderWidth: question && question.rarity === "legendary" ? 3 : 1,
+              boxShadow:
+                question && question.rarity === "legendary"
+                  ? `0 0 18px ${RARITIES.legendary.color}66`
+                  : undefined,
               color:
                 revealInfo?.side === (i === 0 ? "a" : "b") ? theme.accentText : theme.text,
             }}

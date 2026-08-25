@@ -97,10 +97,14 @@ export default function ResultScreen({
         />
         <Stat label="XP earned" value={`⭐ +${xpGain}`} />
         <Stat label="Coins earned" value={`🪙 +${run.coinsEarned + streakBonus}`} />
-        <Stat
-          label="Login-streak bonus"
-          value={streakBonus > 0 ? `🔥 +${streakBonus} 🪙` : "—"}
-        />
+        {run.legendaries > 0 ? (
+          <Stat label="Legendaries hit" value={`🟡 ×${run.legendaries}`} color="#ffd54f" />
+        ) : (
+          <Stat
+            label="Login-streak bonus"
+            value={streakBonus > 0 ? `🔥 +${streakBonus} 🪙` : "—"}
+          />
+        )}
       </div>
 
       {/* daily note */}
@@ -169,11 +173,13 @@ export default function ResultScreen({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-3 text-center">
       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{label}</p>
-      <p className="mt-0.5 truncate text-lg font-black tabular-nums">{value}</p>
+      <p className="mt-0.5 truncate text-lg font-black tabular-nums" style={{ color }}>
+        {value}
+      </p>
     </div>
   );
 }

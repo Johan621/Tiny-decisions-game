@@ -1,10 +1,22 @@
 import { ABSURD_EXTRA, CATEGORY_LABELS, OPTIONS, type CategoryId } from "./content";
 
+export type Rarity = "common" | "rare" | "epic" | "legendary";
+
 export interface Question {
   key: string;
   category: CategoryId | "absurd";
   a: string;
   b: string;
+  rarity: Rarity;
+}
+
+/** Rolls question rarity. Legendary ~3%, Epic ~12%, Rare ~25%. */
+export function rollRarity(rng: Rng): Rarity {
+  const r = rng();
+  if (r < 0.03) return "legendary";
+  if (r < 0.15) return "epic";
+  if (r < 0.4) return "rare";
+  return "common";
 }
 
 export type Rng = () => number;
@@ -70,13 +82,11 @@ function randomPairFrom(rng: Rng, pool: readonly string[]): [string, string] {
 
 /**
  * Generates the next question. ~72% same-category pairs for coherent dilemmas,
- * the rest cross-category chaos. Avoids repeating anything in `recent`.
+ * the rest cross-category chaos. Avoids anything in `recent` (in-session AND
+ * persisted across sessions by the caller).
  */
-export function nextQuestion(
-  rng: Rng,
-  recent: Set<string>
-): Question {
-  for (let attempt = 0; attempt < 24; attempt++) {
+export function nextQuestion(rng: Rng, recent: Set<string>): Question {
+  for (let attempt = 0; attempt < 40; attempt++) {
     let cat: CategoryId | "absurd";
     let a: string;
     let b: string;
@@ -106,18 +116,18 @@ export function nextQuestion(
     const key = pairKey(a, b);
     if (!recent.has(key)) {
       recent.add(key);
-      return { key, category: cat, a, b };
+      return { key, category: cat, a, b, rarity: rollRarity(rng) };
     }
   }
-  // Extremely unlikely fallback: force a fresh pair
-  const cat = pick(rng, CATEGORY_LABELS);
-  const pool = [...ALL_POOLS[cat], ...ABSURD_EXTRA];
-  const shuffled = [...pool].sort(() => rng() - 0.5);
-  const a = shuffled[0]!;
-  const b = shuffled[1]!;
+  // Extremely unlikely fallback: force a fresh pair from the largest pool
+  const pool = [...ALL_POOLS.funny, ...ALL_POOLS.weird, ...ABSURD_EXTRA].sort(
+    () => rng() - 0.5
+  );
+  const a = pool[0]!;
+  const b = pool[1]!;
   const key = pairKey(a, b);
   recent.add(key);
-  return { key, category: "absurd", a, b };
+  return { key, category: "absurd", a, b, rarity: rollRarity(rng) };
 }
 
 /** Keeps only the newest `keep` keys to bound memory during long sessions. */
