@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { buildView, getRoom } from "@/lib/game/store"
+import { buildView, getRoom, tickBots } from "@/lib/game/store"
 
 export const dynamic = "force-dynamic"
 
@@ -20,5 +20,6 @@ export async function GET(request: Request) {
     )
   }
   room.players.get(pid)!.lastSeen = Date.now()
+  tickBots(room)
   return NextResponse.json({ ok: true, view: buildView(room, pid) })
 }

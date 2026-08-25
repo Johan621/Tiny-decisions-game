@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server"
-import { advance, buildView, createRoom, getRoom, joinRoom, voteAnswer, voteSuspect } from "@/lib/game/store"
+import {
+  addBot,
+  advance,
+  buildView,
+  createRoom,
+  getRoom,
+  joinRoom,
+  kickBot,
+  tickBots,
+  voteAnswer,
+  voteSuspect,
+} from "@/lib/game/store"
 
 export const dynamic = "force-dynamic"
 
@@ -37,6 +48,14 @@ export async function POST(request: Request) {
       }
       return NextResponse.json({ ok: true, pid: result.pid })
     }
+    case "add-bot":
+    case "kick-bot": {
+      const room = getRoom(body.code ?? "")
+      if (!room) return NextResponse.json({ ok: false, error: "ROOM_NOT_FOUND" }, { status: 404 })
+      const result = body.type === "add-bot" ? addBot(room) : kickBot(room, body.pid ?? "")
+      if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 })
+      return NextResponse.json({ ok: true })
+    }
     case "vote-answer":
     case "vote-suspect":
     case "advance": {
@@ -46,6 +65,7 @@ export async function POST(request: Request) {
       const me = room.players.get(pid)
       if (!me) return NextResponse.json({ ok: false, error: "PLAYER_NOT_FOUND" }, { status: 404 })
       me.lastSeen = Date.now()
+      tickBots(room)
 
       let result: { ok: true } | { ok: false; error: string }
       if (body.type === "vote-answer") {

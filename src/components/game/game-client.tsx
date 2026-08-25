@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  Bot,
   Check,
   ChevronLeft,
   Copy,
@@ -13,10 +14,13 @@ import {
   EyeOff,
   Fingerprint,
   HelpCircle,
+  Plus,
   Search,
   Sparkles,
   Target,
   Trophy,
+  UserMinus,
+  Vote,
   Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -345,14 +349,19 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <main className="flex min-h-dvh flex-col items-center justify-center p-6 text-center text-zinc-100">{children}</main>
 }
 
-function Avatar({ id, name, size = "md" }: { id: string; name: string; size?: "sm" | "md" | "lg" }) {
+function Avatar({ id, name, size = "md", bot = false }: { id: string; name: string; size?: "sm" | "md" | "lg"; bot?: boolean }) {
   const dims = size === "sm" ? "h-6 w-6 text-[10px]" : size === "lg" ? "h-12 w-12 text-lg" : "h-9 w-9 text-xs"
   return (
     <span
       style={{ backgroundColor: `${playerColor(id)}22`, color: playerColor(id), borderColor: `${playerColor(id)}55` }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full border font-bold ${dims}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full border font-bold ${dims}`}
     >
       {name.slice(0, 2).toUpperCase()}
+      {bot && (
+        <span className="absolute -right-1 -top-1 rounded-full bg-zinc-800 p-[2px] ring-1 ring-white/20">
+          <Bot className="h-2.5 w-2.5 text-zinc-300" />
+        </span>
+      )}
     </span>
   )
 }
@@ -379,12 +388,39 @@ function Lobby({ view, act }: { view: View; act: (b: Record<string, unknown>) =>
         {view.players.map((p) => (
           <div
             key={p.id}
-            className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-3"
+            className={[
+              "flex items-center gap-2.5 rounded-xl border p-3",
+              p.isBot ? "border-dashed border-white/15 bg-white/[0.02]" : "border-white/5 bg-white/[0.03]",
+            ].join(" ")}
           >
-            <Avatar id={p.id} name={p.name} />
+            <Avatar id={p.id} name={p.name} bot={p.isBot} />
             <span className="truncate text-sm font-semibold">{p.name}</span>
+            {p.isBot && (
+              <button
+                onClick={() => act({ type: "kick-bot", pid: p.id })}
+                title={`Remove ${p.name}`}
+                className="ml-auto text-zinc-600 transition hover:text-rose-400"
+              >
+                <UserMinus className="h-4 w-4" />
+              </button>
+            )}
           </div>
         ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+        <Button
+          onClick={() => act({ type: "add-bot" })}
+          disabled={view.players.length >= 12}
+          variant="outline"
+          className="h-11 rounded-xl border-dashed border-white/20 bg-transparent text-sm font-semibold text-zinc-300 hover:bg-white/5"
+        >
+          <Plus className="h-4 w-4" /> Add a test bot
+        </Button>
+        <p className="self-center text-right text-[10px] leading-tight text-zinc-600">
+          bots answer, accuse
+          <br />& cheat on their own
+        </p>
       </div>
 
       <Button
@@ -540,7 +576,7 @@ function SuspicionPhase({ view, act }: { view: View; act: (b: Record<string, unk
                     : "border-white/10 bg-white/[0.03] hover:border-white/25",
                 ].join(" ")}
               >
-                <Avatar id={p.id} name={p.name} size="sm" />
+                <Avatar id={p.id} name={p.name} size="sm" bot={p.isBot} />
                 <span className="truncate text-sm font-semibold">{p.name}</span>
               </button>
             )
@@ -604,7 +640,7 @@ function ScoresPhase({ view, act }: { view: View; act: (b: Record<string, unknow
               ].join(" ")}
             >
               <span className="w-5 shrink-0 text-center font-mono text-xs text-zinc-500">{rank + 1}</span>
-              <Avatar id={p.id} name={p.name} size="sm" />
+              <Avatar id={p.id} name={p.name} size="sm" bot={p.isBot} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
                   {p.name}
@@ -757,8 +793,4 @@ function AdvanceBar({
       </div>
     </div>
   )
-}
-
-function Vote() {
-  return <Check className="h-4 w-4" />
 }

@@ -23,6 +23,10 @@ function check(name, cond, extra = "") {
   }
 }
 
+async function sleep(ms) {
+  await new Promise((r) => setTimeout(r, ms))
+}
+
 async function main() {
   // create + join
   const c = await act({ type: "create", name: "Alice" })
@@ -135,6 +139,55 @@ async function main() {
   const again = await act({ type: "advance", code, pid: alice })
   check("play again returns to lobby", again.data.ok && again.data.view.phase === "lobby")
   check("scores reset", again.data.view.players.every((p) => p.score === 0))
+
+  /* ---------- bots ---------- */
+
+  for (let i = 0; i < 2; i++) {
+    const b = await act({ type: "add-bot", code })
+    check(`add bot ${i + 1}`, b.data.ok)
+  }
+  const lobbyBots = (await state(code, alice)).data.view
+  const bots = lobbyBots.players.filter((p) => p.isBot)
+  check("two bots seated", bots.length === 2 && lobbyBots.players.length === 5)
+
+  const kick = await act({ type: "kick-bot", code, pid: bots[0].id })
+  check("kick bot works", kick.data.ok)
+  await act({ type: "add-bot", code })
+
+  const startBots = await act({ type: "advance", code, pid: alice })
+  check("bot round starts", startBots.data.ok && startBots.data.view.phase === "question")
+
+  // human answers; wait for bot ticks driven by polling
+  await act({ type: "vote-answer", code, pid: alice, choice: 1 })
+  let qv = null
+  for (let i = 0; i < 30; i++) {
+    await sleep(1000)
+    qv = (await state(code, alice)).data.view
+    if (qv.votesLocked >= qv.votesNeeded) break
+  }
+  check("bots locked answers on their own", qv.votesLocked >= qv.votesNeeded, JSON.stringify(qv.votesLocked))
+
+  await act({ type: "advance", code, pid: alice }) // -> suspicion
+  await act({ type: "vote-suspect", code, pid: alice, suspectId: bob })
+  let sv2 = null
+  for (let i = 0; i < 30; i++) {
+    await sleep(1000)
+    sv2 = (await state(code, alice)).data.view
+    if (sv2.suspectsLocked >= sv2.suspectsNeeded) break
+  }
+  check("bots accused on their own", sv2.suspectsLocked >= sv2.suspectsNeeded, JSON.stringify(sv2.suspectsLocked))
+
+  const botFin = await act({ type: "advance", code, pid: alice })
+  const botFinView = botFin.data.view
+  check("bot round resolves to scores", botFin.data.ok && botFinView.phase === "scores")
+  const g = botFinView.gains ?? {}
+  const voters = Object.keys(botFinView.answerVotesPublic ?? {})
+  check(
+    "every voter + the insider appears in gains",
+    voters.every((pid) => !!g[pid]) && !!botFinView.insiderId && !!g[botFinView.insiderId]
+  )
+  check("bots earned answer points like humans", Object.entries(g).some(([pid, gain]) => pid.startsWith("bot-") && gain.answer > 0))
+  check("insider exists in bot round", !!botFinView.insiderId)
 
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECKS FAILED`)
   process.exit(failures === 0 ? 0 : 1)

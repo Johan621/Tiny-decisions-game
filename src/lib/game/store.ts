@@ -8,6 +8,7 @@ export interface Player {
   score: number
   joinedAt: number
   lastSeen: number
+  isBot?: boolean
 }
 
 export interface Round {
@@ -16,6 +17,9 @@ export interface Round {
   answerVotes: Record<string, number>
   suspectVotes: Record<string, string>
   gains: Record<string, Gain> | null
+  startedAt: number
+  botAnswerAt: Record<string, number>
+  botSuspectAt: Record<string, number>
 }
 
 export interface Gain {
@@ -154,14 +158,22 @@ function buildRoundQuestion(room: Room) {
 
 function startNextRound(room: Room) {
   if (room.phase === "lobby") buildInsiderQueue(room)
+  const now = Date.now()
   room.roundNum += 1
-  room.rounds.push({
+  const round: Round = {
     q: buildRoundQuestion(room),
     insiderId: nextInsider(room),
     answerVotes: {},
     suspectVotes: {},
     gains: null,
-  })
+    startedAt: now,
+    botAnswerAt: {},
+    botSuspectAt: {},
+  }
+  for (const p of room.players.values()) {
+    if (p.isBot) round.botAnswerAt[p.id] = now + 3500 + Math.random() * 9000
+  }
+  room.rounds.push(round)
   room.phase = "question"
 }
 
@@ -169,7 +181,7 @@ export function connectedPlayers(room: Room): Player[] {
   const now = Date.now()
   return room.joinOrder
     .map((id) => room.players.get(id))
-    .filter((p): p is Player => !!p && now - p.lastSeen < CONNECTED_MS)
+    .filter((p): p is Player => !!p && (p.isBot || now - p.lastSeen < CONNECTED_MS))
 }
 
 function currentRound(room: Room): Round | undefined {
@@ -280,13 +292,88 @@ export function voteSuspect(
   return { ok: true }
 }
 
+/* ---------- bots ---------- */
+
+const BOT_NAMES = ["Nova", "Rex", "Pixel", "Echo", "Juno", "Blitz", "Onyx", "Vega", "Rook", "Milo"]
+
+export function addBot(room: Room): { ok: true } | { ok: false; error: string } {
+  if (room.phase !== "lobby") return { ok: false, error: "BAD_PHASE" }
+  if (room.players.size >= MAX_PLAYERS) return { ok: false, error: "ROOM_FULL" }
+  const used = new Set([...room.players.values()].map((p) => p.name))
+  let name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${room.players.size}`
+  const now = Date.now()
+  const id = `bot-${crypto.randomUUID()}`
+  room.players.set(id, { id, name, score: 0, joinedAt: now, lastSeen: now, isBot: true })
+  room.joinOrder.push(id)
+  room.insiderQueue.push(id)
+  return { ok: true }
+}
+
+export function kickBot(room: Room, botId: string): { ok: true } | { ok: false; error: string } {
+  if (room.phase !== "lobby") return { ok: false, error: "BAD_PHASE" }
+  const bot = room.players.get(botId)
+  if (!bot?.isBot) return { ok: false, error: "NOT_A_BOT" }
+  room.players.delete(botId)
+  room.joinOrder = room.joinOrder.filter((id) => id !== botId)
+  room.insiderQueue = room.insiderQueue.filter((id) => id !== botId)
+  return { ok: true }
+}
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function botAnswerChoice(round: Round, botId: string): number {
+  if (round.insiderId === botId) return round.q.correctIndex
+  if (Math.random() < 0.45) return round.q.correctIndex
+  const wrong = [0, 1, 2, 3].filter((i) => i !== round.q.correctIndex)
+  return pick(wrong)
+}
+
+function botSuspectChoice(room: Room, round: Round, botId: string): string {
+  const candidates = room.joinOrder.filter((id) => id !== botId && room.players.has(id))
+  if (!candidates.length) return botId // should never happen with >=3 players
+  const correctOthers = candidates.filter((id) => round.answerVotes[id] === round.q.correctIndex)
+  if (round.insiderId === botId) {
+    // the cheat deflects onto someone who looks confident
+    return correctOthers.length ? pick(correctOthers) : pick(candidates)
+  }
+  // honest bots mostly grow suspicious of anyone who nailed the answer
+  if (correctOthers.length && Math.random() < 0.65) return pick(correctOthers)
+  return pick(candidates)
+}
+
+export function tickBots(room: Room) {
+  const now = Date.now()
+  const round = currentRound(room)
+  if (!round) return
+  if (room.phase === "question") {
+    for (const [bid, at] of Object.entries(round.botAnswerAt)) {
+      if (now >= at && round.answerVotes[bid] === undefined && room.players.get(bid)?.isBot) {
+        round.answerVotes[bid] = botAnswerChoice(round, bid)
+      }
+    }
+  } else if (room.phase === "suspicion") {
+    if (!Object.keys(round.botSuspectAt).length) {
+      for (const p of room.players.values()) {
+        if (p.isBot) round.botSuspectAt[p.id] = now + 3000 + Math.random() * 9000
+      }
+    }
+    for (const [bid, at] of Object.entries(round.botSuspectAt)) {
+      if (now >= at && round.suspectVotes[bid] === undefined && room.players.get(bid)?.isBot) {
+        round.suspectVotes[bid] = botSuspectChoice(room, round, bid)
+      }
+    }
+  }
+}
+
 export interface PlayerView {
   code: string
   phase: Phase
   roundNum: number
   totalRounds: number
   meId: string
-  players: Array<{ id: string; name: string; score: number; connected: boolean }>
+  players: Array<{ id: string; name: string; score: number; connected: boolean; isBot: boolean }>
   question: { text: string; options: string[] } | null
   myAnswer: number | null
   mySuspect: string | null
@@ -309,7 +396,13 @@ export function buildView(room: Room, pid: string): PlayerView {
   const players = room.joinOrder
     .map((id) => room.players.get(id))
     .filter((p): p is Player => !!p)
-    .map((p) => ({ id: p.id, name: p.name, score: p.score, connected: now - p.lastSeen < CONNECTED_MS }))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      score: p.score,
+      connected: p.isBot || now - p.lastSeen < CONNECTED_MS,
+      isBot: !!p.isBot,
+    }))
   const connected = players.filter((p) => p.connected)
 
   const view: PlayerView = {
