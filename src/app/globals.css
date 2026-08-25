@@ -121,6 +121,42 @@
   }
 }
 
+/* ---------- Endless Tiny Decisions ---------- */
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  overflow-x: hidden;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Hide Next.js error overlay portal */
 nextjs-portal {
   display: none !important;

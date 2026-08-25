@@ -1,0 +1,118 @@
+import type { Rng } from "./generator";
+
+export interface RunSummary {
+  mode: "endless" | "daily";
+  score: number;
+  choices: number;
+  bestCombo: number;
+  fastestMs: number | null;
+  eventsSeen: number;
+  coinsEarned: number;
+  dailyCompleted: boolean;
+}
+
+export type EventId = "double" | "freeze" | "shield" | "rain" | "mirror";
+
+export const EVENTS: Record<EventId, { name: string; emoji: string; blurb: string }> = {
+  double: { name: "Double Trouble", emoji: "✨", blurb: "×2 points for 5 answers!" },
+  freeze: { name: "Time Freeze", emoji: "❄️", blurb: "Next question: +60% time!" },
+  shield: { name: "Combo Shield", emoji: "🛡️", blurb: "Your combo survives one slow tap!" },
+  rain: { name: "Coin Rain", emoji: "🪙", blurb: "+20 coins, instantly!" },
+  mirror: { name: "Mirror Mode", emoji: "🌀", blurb: "Sides shuffle for 5 rounds!" },
+};
+
+const EVENT_IDS = Object.keys(EVENTS) as EventId[];
+
+export function pickEvent(rng: Rng, exclude: EventId | null): EventId {
+  const pool = EVENT_IDS.filter((e) => e !== exclude);
+  return pool[Math.floor(rng() * pool.length)]!;
+}
+
+export function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+/** Timer shrinks as the run goes: 5.0s → 2.3s floor. */
+export function timeLimitMs(choices: number): number {
+  return clamp(5000 - choices * 55, 2300, 5000);
+}
+
+export function multiplierFor(combo: number): number {
+  return Math.min(8, 1 + Math.floor(combo / 4));
+}
+
+export function pointsFor(frac: number, mult: number, eventMult: number): number {
+  return Math.max(1, Math.round((10 + 15 * clamp(frac, 0, 1)) * mult * eventMult));
+}
+
+export function coinsFor(score: number): number {
+  return Math.floor(score / 120);
+}
+
+/* ---------- tiny feedback helpers (no assets, works offline) ---------- */
+
+let audioCtx: AudioContext | null = null;
+
+type SoundKind = "tap" | "good" | "combo" | "bad" | "event";
+
+export function blip(kind: SoundKind, enabled: boolean): void {
+  if (!enabled) return;
+  try {
+    const AC =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    switch (kind) {
+      case "tap":
+        osc.frequency.value = 660;
+        gain.gain.setValueAtTime(0.06, t);
+        break;
+      case "good":
+        osc.frequency.setValueAtTime(520, t);
+        osc.frequency.exponentialRampToValueAtTime(880, t + 0.08);
+        gain.gain.setValueAtTime(0.07, t);
+        break;
+      case "combo":
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(700, t);
+        osc.frequency.exponentialRampToValueAtTime(1400, t + 0.12);
+        gain.gain.setValueAtTime(0.08, t);
+        break;
+      case "bad":
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(90, t + 0.25);
+        gain.gain.setValueAtTime(0.08, t);
+        break;
+      case "event":
+        osc.type = "square";
+        osc.frequency.setValueAtTime(500, t);
+        osc.frequency.exponentialRampToValueAtTime(1000, t + 0.18);
+        gain.gain.setValueAtTime(0.05, t);
+        break;
+    }
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    osc.start(t);
+    osc.stop(t + 0.24);
+  } catch {
+    // audio unsupported — silent fallback
+  }
+}
+
+export function buzz(pattern: number | number[], enabled: boolean): void {
+  if (!enabled) return;
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // unsupported
+  }
+}

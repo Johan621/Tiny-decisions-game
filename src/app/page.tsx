@@ -1,5 +1,5 @@
-import HomeClient from "@/components/game/home-client"
+import GameApp from "@/components/decisions/GameApp";
 
 export default function Page() {
-  return <HomeClient />
+  return <GameApp />;
 }
