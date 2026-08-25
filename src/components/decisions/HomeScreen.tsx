@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { badgeById } from "@/lib/decisions/badges";
+import { combinationCount } from "@/lib/decisions/generator";
+import { levelFromXp } from "@/lib/decisions/run";
 import type { Profile } from "@/lib/decisions/storage";
 
 export default function HomeScreen({
@@ -16,7 +18,7 @@ export default function HomeScreen({
   profile: Profile;
   onPlay: () => void;
   onDaily: () => void;
-  onOpenSheet: (s: "leaderboard" | "themes" | "badges") => void;
+  onOpenSheet: (s: "leaderboard" | "themes" | "badges" | "rewards") => void;
   onToggleSound: () => void;
   onRename: (name: string) => void;
 }) {
@@ -24,36 +26,54 @@ export default function HomeScreen({
   const [nameDraft, setNameDraft] = useState(profile.name);
   const title = profile.title ? badgeById(profile.title)?.title : null;
   const dailyDone = profile.dailyLast === todayKeyStr();
+  const lvl = levelFromXp(profile.xp);
+  const rewardReady = profile.loginLast !== todayKeyStr();
+  const comboCount = combinationCount();
 
   return (
     <div className="flex min-h-dvh flex-col px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-[max(env(safe-area-inset-top),16px)] text-white">
       {/* top bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <button
           onClick={() => {
             setNameDraft(profile.name);
             setEditingName(true);
           }}
-          className="max-w-[70%] rounded-2xl bg-white/15 px-4 py-2 text-left backdrop-blur-sm active:scale-[0.98] transition"
+          className="min-w-0 flex-1 rounded-2xl bg-white/15 px-4 py-2 text-left active:scale-[0.98] transition"
         >
           <p className="truncate text-sm font-extrabold leading-tight">
             {profile.name} <span className="opacity-60">✏️</span>
           </p>
-          {title && <p className="text-[11px] font-semibold uppercase tracking-wider opacity-80">{title}</p>}
+          {title && (
+            <p className="truncate text-[11px] font-semibold uppercase tracking-wider opacity-80">
+              {title}
+            </p>
+          )}
         </button>
         <button
           onClick={onToggleSound}
           aria-label="Toggle sound"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-lg backdrop-blur-sm active:scale-90 transition"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 text-lg active:scale-90 transition"
         >
           {profile.sound ? "🔊" : "🔇"}
         </button>
+        {rewardReady && (
+          <motion.button
+            animate={{ scale: [1, 1.12, 1] }}
+            transition={{ repeat: Infinity, duration: 1.4 }}
+            onClick={() => onOpenSheet("rewards")}
+            aria-label="Claim daily reward"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-yellow-300 text-lg shadow-lg"
+          >
+            🎁
+          </motion.button>
+        )}
       </div>
 
       {/* logo */}
-      <div className="mt-8 select-none">
+      <div className="mt-6 select-none">
         <Logo />
-        <h1 className="mt-4 text-[34px] font-black uppercase leading-none tracking-tight drop-shadow">
+        <h1 className="mt-4 text-[32px] font-black uppercase leading-none tracking-tight drop-shadow">
           Endless
           <br />
           Tiny Decisions
@@ -63,15 +83,31 @@ export default function HomeScreen({
         </p>
       </div>
 
+      {/* level bar */}
+      <div className="mt-4 rounded-2xl border border-white/25 bg-white/12 px-4 py-2.5">
+        <div className="flex items-baseline justify-between text-xs font-extrabold uppercase tracking-widest opacity-85">
+          <span>Level {lvl.lvl}</span>
+          <span className="tabular-nums">
+            {lvl.into}/{lvl.need} XP
+          </span>
+        </div>
+        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/25">
+          <div
+            className="h-full rounded-full bg-yellow-300 transition-[width] duration-500"
+            style={{ width: `${Math.min(100, (lvl.into / lvl.need) * 100)}%` }}
+          />
+        </div>
+      </div>
+
       {/* stats */}
-      <div className="mt-6 grid grid-cols-3 gap-2.5">
+      <div className="mt-3 grid grid-cols-3 gap-2.5">
         <StatCard label="Best" value={fmt(profile.best)} />
         <StatCard label="Coins" value={`🪙 ${profile.coins}`} />
         <StatCard label="Streak" value={`🔥 ${profile.streak}d`} />
       </div>
 
       {/* actions */}
-      <div className="mt-auto space-y-3 pt-8">
+      <div className="mt-auto space-y-3 pt-6">
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onPlay}
@@ -84,7 +120,7 @@ export default function HomeScreen({
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onDaily}
-          className="flex w-full items-center justify-between rounded-[22px] border border-white/30 bg-white/15 px-5 py-4 backdrop-blur-md active:scale-[0.98] transition"
+          className="flex w-full items-center justify-between rounded-[22px] border border-white/30 bg-white/15 px-5 py-4 active:scale-[0.98] transition"
         >
           <span className="text-left">
             <span className="block text-base font-extrabold">📅 Daily Challenge</span>
@@ -97,20 +133,21 @@ export default function HomeScreen({
           </span>
         </motion.button>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-4 gap-2">
           <NavChip emoji="🏆" label="Ranks" onClick={() => onOpenSheet("leaderboard")} />
           <NavChip emoji="🎨" label="Themes" onClick={() => onOpenSheet("themes")} />
           <NavChip emoji="🏅" label="Badges" onClick={() => onOpenSheet("badges")} />
+          <NavChip emoji="🎁" label="Gifts" dot={rewardReady} onClick={() => onOpenSheet("rewards")} />
         </div>
 
         <p className="pt-1 text-center text-[11px] font-semibold uppercase tracking-widest opacity-60">
-          Fast taps build combos · surprises every 20
+          {comboCount.toLocaleString("en-IN")} dilemmas · no repeats · offline ready
         </p>
       </div>
 
       {/* rename dialog */}
       {editingName && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 px-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-6">
           <motion.div
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
@@ -160,7 +197,7 @@ function fmt(n: number): string {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-2.5 text-center backdrop-blur-md">
+    <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-2.5 text-center">
       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{label}</p>
       <p className="mt-0.5 truncate text-base font-black tabular-nums">{value}</p>
     </div>
@@ -170,20 +207,25 @@ function StatCard({ label, value }: { label: string; value: string }) {
 function NavChip({
   emoji,
   label,
+  dot,
   onClick,
 }: {
   emoji: string;
   label: string;
+  dot?: boolean;
   onClick: () => void;
 }) {
   return (
     <motion.button
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className="rounded-2xl border border-white/25 bg-white/12 py-3 backdrop-blur-md active:bg-white/20 transition"
+      className="relative rounded-2xl border border-white/25 bg-white/12 py-3 active:bg-white/20 transition"
     >
       <span className="block text-xl">{emoji}</span>
-      <span className="mt-0.5 block text-xs font-extrabold">{label}</span>
+      <span className="mt-0.5 block text-[11px] font-extrabold">{label}</span>
+      {dot && (
+        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yellow-300 shadow" />
+      )}
     </motion.button>
   );
 }

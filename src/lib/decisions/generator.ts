@@ -35,6 +35,12 @@ export function todayKey(date = new Date()): string {
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
 }
 
+export function yesterdayKey(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return todayKey(d);
+}
+
 const ALL_POOLS: Record<CategoryId, string[]> = { ...OPTIONS };
 
 /** Total distinct pair combinations available to the generator. */

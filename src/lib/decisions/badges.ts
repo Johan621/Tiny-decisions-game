@@ -1,3 +1,4 @@
+import { levelFromXp } from "./run";
 import type { Profile } from "./storage";
 
 export interface BadgeDef {
@@ -93,6 +94,27 @@ export const BADGES: BadgeDef[] = [
     title: "Theme Hound",
     desc: "Own 5 themes",
   },
+  {
+    id: "level_5",
+    emoji: "⭐",
+    name: "Rising Star",
+    title: "Level Master",
+    desc: "Reach level 5",
+  },
+  {
+    id: "level_10",
+    emoji: "🌟",
+    name: "Veteran Decider",
+    title: "Grandmaster",
+    desc: "Reach level 10",
+  },
+  {
+    id: "login_7",
+    emoji: "🎁",
+    name: "Loyal Picker",
+    title: "Gift Guardian",
+    desc: "7-day login streak",
+  },
 ];
 
 export function badgeById(id: string): BadgeDef | undefined {
@@ -131,6 +153,9 @@ export function evaluateBadges(run: RunStatsInput, profileAfter: Profile): strin
   if (profileAfter.streak >= 3) grant("streak_3");
   if (profileAfter.coins >= 300) grant("rich");
   if (profileAfter.themes.length >= 5) grant("theme_hound");
+  if (levelFromXp(profileAfter.xp).lvl >= 5) grant("level_5");
+  if (levelFromXp(profileAfter.xp).lvl >= 10) grant("level_10");
+  if (profileAfter.loginStreak >= 7) grant("login_7");
 
   return earned;
 }

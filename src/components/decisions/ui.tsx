@@ -25,7 +25,7 @@ export function Sheet({
         >
           <button
             aria-label="Close"
-            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-black/55"
             onClick={onClose}
           />
           <motion.div
@@ -97,7 +97,7 @@ export function AdModal({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm px-6"
+          className="fixed inset-0 z-[60] grid place-items-center bg-black/75 px-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

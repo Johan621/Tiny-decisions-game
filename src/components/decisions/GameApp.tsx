@@ -3,18 +3,25 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { evaluateBadges } from "@/lib/decisions/badges";
-import { todayKey } from "@/lib/decisions/generator";
-import type { RunSummary } from "@/lib/decisions/run";
+import { todayKey, yesterdayKey } from "@/lib/decisions/generator";
+import {
+  levelFromXp,
+  LOGIN_REWARDS,
+  nextLoginRewardPos,
+  streakCoinBonus,
+  xpForRun,
+  type RunSummary,
+} from "@/lib/decisions/run";
 import { loadProfile, saveProfile, type Profile } from "@/lib/decisions/storage";
 import { getTheme, THEMES } from "@/lib/decisions/themes";
 import HomeScreen from "./HomeScreen";
 import PlayScreen from "./PlayScreen";
 import ResultScreen from "./ResultScreen";
-import { BadgesSheet, LeaderboardSheet, ThemesSheet } from "./sheets";
+import { BadgesSheet, DailyRewardsSheet, LeaderboardSheet, ThemesSheet } from "./sheets";
 import { AdModal } from "./ui";
 
 type Screen = "home" | "play" | "result";
-type SheetKind = "leaderboard" | "themes" | "badges" | null;
+type SheetKind = "leaderboard" | "themes" | "badges" | "rewards" | null;
 
 function submitScore(p: Profile, score: number, mode: string): void {
   fetch("/api/leaderboard", {
@@ -35,6 +42,8 @@ export default function GameApp() {
   const [runNonce, setRunNonce] = useState(0);
   const [adOpen, setAdOpen] = useState(false);
   const [adUnlockTheme, setAdUnlockTheme] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [lastLevel, setLastLevel] = useState({ gained: 0, level: 1, xpGain: 0, streakBonus: 0 });
   const profileRef = useRef<Profile | null>(null);
 
   useEffect(() => {
@@ -42,6 +51,20 @@ export default function GameApp() {
     profileRef.current = p;
     setProfile(p);
     setSessionThemeId(p.activeTheme);
+    setOffline(!navigator.onLine);
+
+    // Offline mode: cache the app shell so the game boots with zero network
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
+    const on = () => setOffline(false);
+    const off = () => setOffline(true);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
   }, []);
 
   const update = useCallback((fn: (p: Profile) => Profile): Profile => {
@@ -85,6 +108,8 @@ export default function GameApp() {
           dailyBest = Math.max(dailyBest, s.score);
         }
 
+        const xpGain = xpForRun(s.score, s.choices, s.dailyCompleted);
+        const sBonus = streakCoinBonus(p.streak);
         const np: Profile = {
           ...p,
           games: p.games + 1,
@@ -97,12 +122,20 @@ export default function GameApp() {
                 : Math.min(p.fastestMs, s.fastestMs)
               : p.fastestMs,
           best: Math.max(p.best, s.score),
-          coins: p.coins + s.coinsEarned,
+          coins: p.coins + s.coinsEarned + sBonus,
+          xp: p.xp + xpGain,
           streak,
           dailyBest,
           dailyLast,
           runs: [{ s: s.score, d: todayKey(), m: s.mode, c: s.choices }, ...p.runs].slice(0, 30),
         };
+
+        setLastLevel({
+          gained: levelFromXp(np.xp).lvl - levelFromXp(p.xp).lvl,
+          level: levelFromXp(np.xp).lvl,
+          xpGain,
+          streakBonus: sBonus,
+        });
 
         earned = evaluateBadges(
           {
@@ -139,6 +172,24 @@ export default function GameApp() {
     update((p) => ({ ...p, coins: p.coins + 15, best: Math.max(p.best, boosted.score) }));
     submitScore(profileRef.current!, boosted.score, boosted.mode);
   }, [lastRun, update]);
+
+  const claimDailyReward = useCallback(
+    (coins: number) => {
+      update((p) => {
+        const tk = todayKey();
+        const yk = yesterdayKey();
+        // Streak continues if this is the first claim ever or yesterday was claimed
+        const continued = p.loginLast === null || p.loginLast === yk;
+        return {
+          ...p,
+          coins: p.coins + coins,
+          loginLast: tk,
+          loginStreak: continued ? p.loginStreak + 1 : 1,
+        };
+      });
+    },
+    [update]
+  );
 
   const adModalOpen = adOpen || adUnlockTheme !== null;
 
@@ -192,6 +243,10 @@ export default function GameApp() {
             <ResultScreen
               run={lastRun}
               newBadgeIds={newBadges}
+              xpGain={lastLevel.xpGain}
+              levelsGained={lastLevel.gained}
+              newLevel={lastLevel.level}
+              streakBonus={lastLevel.streakBonus}
               adAvailable={profile.games % 2 === 0}
               onWatchAd={() => setAdOpen(true)}
               onPlayAgain={() => startRun(lastRun.mode)}
@@ -203,6 +258,12 @@ export default function GameApp() {
       </AnimatePresence>
 
       <LeaderboardSheet open={sheet === "leaderboard"} onClose={() => setSheet(null)} profile={profile} />
+      <DailyRewardsSheet
+        open={sheet === "rewards"}
+        onClose={() => setSheet(null)}
+        profile={profile}
+        onClaim={claimDailyReward}
+      />
       <ThemesSheet
         open={sheet === "themes"}
         onClose={() => setSheet(null)}
@@ -223,6 +284,17 @@ export default function GameApp() {
         profile={profile}
         onSelectTitle={(id) => update((p) => ({ ...p, title: id }))}
       />
+
+      {/* offline indicator */}
+      {offline && (
+        <motion.div
+          initial={{ y: 60 }}
+          animate={{ y: 0 }}
+          className="fixed bottom-[max(env(safe-area-inset-bottom),10px)] left-1/2 z-40 -translate-x-1/2 rounded-full bg-black/85 px-4 py-2 text-xs font-bold text-white shadow-xl"
+        >
+          📡 Offline — playing locally, progress saves on device
+        </motion.div>
+      )}
 
       <AdModal
         open={adModalOpen}

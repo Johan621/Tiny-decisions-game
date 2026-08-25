@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { BADGES, badgeById } from "@/lib/decisions/badges";
+import { todayKey, yesterdayKey } from "@/lib/decisions/generator";
+import { LOGIN_REWARDS, nextLoginRewardPos } from "@/lib/decisions/run";
 import type { Profile } from "@/lib/decisions/storage";
 import { THEMES, type ThemeDef } from "@/lib/decisions/themes";
 import { Sheet } from "./ui";
@@ -155,6 +157,76 @@ export function LeaderboardSheet({
 
 function medal(i: number): string {
   return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
+}
+
+export function DailyRewardsSheet({
+  open,
+  onClose,
+  profile,
+  onClaim,
+}: {
+  open: boolean;
+  onClose: () => void;
+  profile: Profile;
+  onClaim: (coins: number) => void;
+}) {
+  const pos = nextLoginRewardPos(
+    profile.loginLast,
+    profile.loginStreak,
+    todayKey(),
+    yesterdayKey()
+  );
+  const claimed = pos === -1;
+  const dayNum = claimed ? ((profile.loginStreak - 1) % LOGIN_REWARDS.length) + 1 : pos + 1;
+
+  return (
+    <Sheet open={open} onClose={onClose} title="🎁 Daily Rewards">
+      <p className="mb-4 text-xs font-semibold opacity-60">
+        Log in and claim daily. Miss a day and the ladder resets — day 7 pays the most!
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {LOGIN_REWARDS.map((reward, i) => {
+          const done = i + 1 < dayNum || (claimed && i + 1 === dayNum);
+          const isToday = i + 1 === dayNum;
+          return (
+            <div
+              key={i}
+              className={`rounded-2xl border px-2 py-3 text-center transition ${
+                isToday
+                  ? "border-yellow-300 bg-yellow-300/20 shadow-lg"
+                  : done
+                    ? "border-emerald-300/40 bg-emerald-400/10"
+                    : "border-white/15 bg-white/5"
+              }`}
+            >
+              <p className="text-[10px] font-black uppercase tracking-wider opacity-70">
+                Day {i + 1}
+              </p>
+              <p className="mt-1 text-base font-black tabular-nums">{done ? "✓" : `🪙${reward}`}</p>
+            </div>
+          );
+        })}
+        <div className="grid place-items-center rounded-2xl border border-white/10 bg-white/5 px-2 py-3 text-center opacity-60">
+          <span className="text-[10px] font-bold uppercase leading-tight">then loops ↻</span>
+        </div>
+      </div>
+
+      <button
+        disabled={claimed}
+        onClick={() => onClaim(LOGIN_REWARDS[pos]!)}
+        className={`mt-5 w-full rounded-2xl py-4 text-lg font-black transition active:scale-[0.98] ${
+          claimed
+            ? "bg-white/10 text-white/50"
+            : "bg-yellow-300 text-yellow-950 shadow-xl"
+        }`}
+      >
+        {claimed ? "Come back tomorrow ✓" : `Claim Day ${dayNum} · 🪙 ${LOGIN_REWARDS[pos]}`}
+      </button>
+      <p className="mt-3 pb-2 text-center text-xs font-semibold opacity-55">
+        Login streak: 🔥 {profile.loginStreak} day{profile.loginStreak === 1 ? "" : "s"}
+      </p>
+    </Sheet>
+  );
 }
 
 export function ThemesSheet({

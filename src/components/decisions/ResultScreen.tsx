@@ -8,6 +8,10 @@ import type { RunSummary } from "@/lib/decisions/run";
 export default function ResultScreen({
   run,
   newBadgeIds,
+  xpGain,
+  levelsGained,
+  newLevel,
+  streakBonus,
   adAvailable,
   onPlayAgain,
   onHome,
@@ -16,6 +20,10 @@ export default function ResultScreen({
 }: {
   run: RunSummary;
   newBadgeIds: string[];
+  xpGain: number;
+  levelsGained: number;
+  newLevel: number;
+  streakBonus: number;
   adAvailable: boolean;
   onPlayAgain: () => void;
   onHome: () => void;
@@ -45,7 +53,7 @@ export default function ResultScreen({
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 18 }}
-        className="mt-6 text-center"
+        className="mt-4 text-center"
       >
         <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-75">
           {run.mode === "daily"
@@ -54,33 +62,57 @@ export default function ResultScreen({
               : "Daily attempt"
             : "Run over"}
         </p>
-        <p className="mt-2 text-[64px] font-black leading-none tabular-nums drop-shadow-lg">
+        <p className="mt-2 text-[60px] font-black leading-none tabular-nums drop-shadow-lg">
           {shown.toLocaleString("en-IN")}
         </p>
         <p className="mt-1 text-sm font-bold uppercase tracking-widest opacity-80">points</p>
       </motion.div>
 
+      {/* level up */}
+      {levelsGained > 0 && (
+        <motion.div
+          initial={{ scale: 0.6, rotate: -4, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ delay: 0.5, type: "spring", damping: 12 }}
+          className="mx-auto mt-4 rounded-2xl bg-yellow-300 px-6 py-2.5 text-center shadow-xl"
+        >
+          <p className="text-lg font-black text-yellow-950">
+            🎉 LEVEL UP! Lv {newLevel}
+          </p>
+          {levelsGained > 1 && (
+            <p className="text-xs font-extrabold text-yellow-800">
+              +{levelsGained} levels at once!
+            </p>
+          )}
+        </motion.div>
+      )}
+
       {/* stats */}
-      <div className="mt-7 grid grid-cols-2 gap-2.5">
+      <div className="mt-5 grid grid-cols-2 gap-2.5">
         <Stat label="Choices" value={`${run.choices}`} />
         <Stat label="Best streak" value={`🔥 ×${run.bestCombo}`} />
         <Stat
           label="Fastest tap"
           value={run.fastestMs !== null ? `${(run.fastestMs / 1000).toFixed(2)}s` : "—"}
         />
-        <Stat label="Coins earned" value={`🪙 +${run.coinsEarned}`} />
+        <Stat label="XP earned" value={`⭐ +${xpGain}`} />
+        <Stat label="Coins earned" value={`🪙 +${run.coinsEarned + streakBonus}`} />
+        <Stat
+          label="Login-streak bonus"
+          value={streakBonus > 0 ? `🔥 +${streakBonus} 🪙` : "—"}
+        />
       </div>
 
       {/* daily note */}
       {run.mode === "daily" && (
-        <div className="mt-4 rounded-2xl border border-white/25 bg-white/12 px-4 py-3 text-center text-sm font-bold backdrop-blur-md">
+        <div className="mt-4 rounded-2xl border border-white/25 bg-white/12 px-4 py-3 text-center text-sm font-bold">
           {run.dailyCompleted
             ? "✅ Challenge logged — come back tomorrow to grow your streak!"
             : "⏱️ Time beat you. Try again tomorrow… or now."}
         </div>
       )}
 
-      {/* new badges */}
+      {/* achievements */}
       {newBadgeIds.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-yellow-200/40 bg-yellow-300/15 px-4 py-3">
           <span className="text-xs font-black uppercase tracking-widest text-yellow-200">
@@ -92,7 +124,7 @@ export default function ResultScreen({
             return (
               <span
                 key={id}
-                className="rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold backdrop-blur-sm"
+                className="rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold"
               >
                 {b.emoji} {b.name}
               </span>
@@ -108,10 +140,11 @@ export default function ResultScreen({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.9 }}
           onClick={onWatchAd}
-          className="mt-4 w-full rounded-2xl border border-emerald-200/50 bg-emerald-400/25 px-4 py-4 text-left backdrop-blur-md active:scale-[0.98] transition"
+          className="mt-4 w-full rounded-2xl border border-emerald-200/50 bg-emerald-400/25 px-4 py-4 text-left active:scale-[0.98] transition"
         >
           <p className="text-sm font-black">
-            🎬 Watch a tiny ad → <span className="text-emerald-200">+{bonus.toLocaleString("en-IN")} pts</span>
+            🎬 Watch a tiny ad →{" "}
+            <span className="text-emerald-200">+{bonus.toLocaleString("en-IN")} pts</span>
           </p>
           <p className="text-xs font-semibold opacity-70">Simulated rewarded ad · no pay-to-win</p>
         </motion.button>
@@ -138,9 +171,9 @@ export default function ResultScreen({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-3 text-center backdrop-blur-md">
+    <div className="rounded-2xl border border-white/25 bg-white/12 px-3 py-3 text-center">
       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{label}</p>
-      <p className="mt-0.5 text-lg font-black tabular-nums">{value}</p>
+      <p className="mt-0.5 truncate text-lg font-black tabular-nums">{value}</p>
     </div>
   );
 }
@@ -149,7 +182,7 @@ function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick: (
   return (
     <button
       onClick={onClick}
-      className="rounded-2xl border border-white/30 bg-white/15 py-3.5 text-base font-extrabold backdrop-blur-md active:scale-[0.98] transition"
+      className="rounded-2xl border border-white/30 bg-white/15 py-3.5 text-base font-extrabold active:scale-[0.98] transition"
     >
       {children}
     </button>

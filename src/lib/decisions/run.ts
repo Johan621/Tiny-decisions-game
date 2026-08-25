@@ -49,6 +49,51 @@ export function coinsFor(score: number): number {
   return Math.floor(score / 120);
 }
 
+/* ---------- progression ---------- */
+
+/** XP earned from a finished run. */
+export function xpForRun(score: number, choices: number, dailyCompleted: boolean): number {
+  return Math.max(10, Math.round(score / 40) + choices) + (dailyCompleted ? 80 : 0);
+}
+
+export interface LevelInfo {
+  lvl: number;
+  into: number; // xp into current level
+  need: number; // xp needed for next level
+}
+
+const BASE_LEVEL_XP = 150;
+
+export function levelFromXp(xp: number): LevelInfo {
+  let lvl = 1;
+  let rest = Math.max(0, xp);
+  let need = BASE_LEVEL_XP;
+  while (rest >= need && lvl < 999) {
+    rest -= need;
+    lvl += 1;
+    need = Math.round(need * 1.15);
+  }
+  return { lvl, into: rest, need };
+}
+
+/** Daily-challenge streak multiplies coin payouts (capped at +10). */
+export function streakCoinBonus(streak: number): number {
+  return Math.min(10, streak);
+}
+
+/** Login-reward ladder, day 1 → 7 (then cycles). */
+export const LOGIN_REWARDS = [20, 30, 40, 60, 80, 100, 150] as const;
+
+/**
+ * Position in the login ladder for the NEXT claim.
+ * Continues the cycle if yesterday was claimed; resets to day 1 otherwise.
+ */
+export function nextLoginRewardPos(loginLast: string | null, loginStreak: number, today: string, yesterday: string): number {
+  if (loginLast === today) return -1; // already claimed today
+  if (loginLast === yesterday && loginStreak > 0) return loginStreak % LOGIN_REWARDS.length;
+  return 0;
+}
+
 /* ---------- tiny feedback helpers (no assets, works offline) ---------- */
 
 let audioCtx: AudioContext | null = null;

@@ -25,6 +25,9 @@ export interface Profile {
   badges: string[];
   runs: RunHistoryItem[];
   sound: boolean;
+  xp: number;
+  loginLast: string | null;
+  loginStreak: number;
 }
 
 const KEY = "etd.profile.v1";
@@ -48,6 +51,9 @@ export function defaultProfile(): Profile {
     badges: [],
     runs: [],
     sound: true,
+    xp: 0,
+    loginLast: null,
+    loginStreak: 0,
   };
 }
 

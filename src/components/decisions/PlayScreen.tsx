@@ -58,7 +58,6 @@ export default function PlayScreen({
   const [index, setIndex] = useState(0);
   const [question, setQuestion] = useState<Question | null>(null);
   const [phase, setPhase] = useState<"ask" | "reveal">("ask");
-  const [frac, setFrac] = useState(1);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [bestCombo, setBestCombo] = useState(0);
@@ -76,6 +75,7 @@ export default function PlayScreen({
   const startRef = useRef(0);
   const finishedRef = useRef(false);
   const statsRef = useRef({ score: 0, bestCombo: 0, fastestMs: null as number | null });
+  const barRef = useRef<HTMLDivElement>(null);
 
   const prompt = useMemo(() => PROMPTS[index % PROMPTS.length]!, [index]);
   const mult = multiplierFor(combo);
@@ -103,7 +103,10 @@ export default function PlayScreen({
     setQuestion(q);
     setIndex((i) => i + 1);
     setPhase("ask");
-    setFrac(1);
+    if (barRef.current) {
+      barRef.current.style.transform = "scaleX(1)";
+      barRef.current.style.background = theme.timer;
+    }
     setMirrorSwap(activeRef.current.mirror > 0 ? !mirrorSwap : mirrorSwap);
 
     let dur = timeLimitMs(index);
@@ -115,7 +118,7 @@ export default function PlayScreen({
     deadlineRef.current = performance.now() + dur;
     startRef.current = performance.now();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, refillQueue, mirrorSwap]);
+  }, [index, refillQueue, mirrorSwap, theme.timer]);
 
   // Kick off first round
   useEffect(() => {
@@ -245,12 +248,13 @@ export default function PlayScreen({
   useEffect(() => {
     if (!question || finishedRef.current || phase !== "ask") return;
     let raf = 0;
-    let lastRendered = 1;
     const tick = () => {
       const f = clamp((deadlineRef.current - performance.now()) / durRef.current, 0, 1);
-      if (Math.abs(lastRendered - f) > 0.008 || f === 0) {
-        lastRendered = f;
-        setFrac(f);
+      // Direct DOM writes — no React re-render per frame (low-end friendly)
+      const el = barRef.current;
+      if (el) {
+        el.style.transform = `scaleX(${f})`;
+        el.style.background = f < 0.35 ? "#ff3d3d" : theme.timer;
       }
       if (f <= 0) {
         setRevealInfo(null);
@@ -261,7 +265,7 @@ export default function PlayScreen({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [question, phase, finishRun]);
+  }, [question, phase, finishRun, theme.timer]);
 
   // Keyboard support for desktop testing
   useEffect(() => {
@@ -276,7 +280,6 @@ export default function PlayScreen({
   const cat = question ? CATEGORY_META[question.category as keyof typeof CATEGORY_META] : null;
   const leftQ = question ? (mirrorSwap ? question.b : question.a) : "";
   const rightQ = question ? (mirrorSwap ? question.a : question.b) : "";
-  const danger = frac < 0.35;
 
   return (
     <div className="relative flex h-dvh w-full flex-col overflow-hidden px-4 pt-[max(env(safe-area-inset-top),12px)]">
@@ -349,10 +352,11 @@ export default function PlayScreen({
         style={{ background: theme.card, height: 10 }}
       >
         <div
-          className="h-full rounded-full transition-colors duration-200"
+          ref={barRef}
+          className="h-full w-full origin-left rounded-full will-change-transform"
           style={{
-            width: `${frac * 100}%`,
-            background: danger ? "#ff3d3d" : theme.timer,
+            transform: "scaleX(1)",
+            background: theme.timer,
           }}
         />
       </div>
@@ -367,7 +371,7 @@ export default function PlayScreen({
             whileTap={{ scale: 0.955 }}
             onClick={() => answer(i === 0 ? "a" : "b")}
             disabled={phase !== "ask"}
-            className="flex min-h-[34dvh] select-none items-center justify-center rounded-[28px] border p-4 text-center shadow-lg backdrop-blur-sm"
+            className="flex min-h-[34dvh] select-none items-center justify-center rounded-[28px] border p-4 text-center shadow-lg"
             style={{
               background:
                 revealInfo?.side === (i === 0 ? "a" : "b")
